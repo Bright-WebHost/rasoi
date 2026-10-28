@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Okra:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1c1c1c;
+
+  /* Dashboard Colors */
+  --red: #E23744;
+  --red2: #CB202D;
+  --tint: #FFF1F2;
+  --ink: #10151C;
+  --muted: #6B7684;
+  --line: #E6E9EE;
+  --bg: #F4F6F8;
+  --card: #ffffff;
+  --navy: #111A26;
+  --navy2: #1B2736;
+  --c-new: #FFF0F1;
+  --c-new-b: #F5C2C6;
+  --c-new-t: #C0392B;
+  --c-prep: #EAF3FF;
+  --c-prep-b: #BFD8F5;
+  --c-prep-t: #1A5FA8;
+  --c-ready: #F2EEFF;
+  --c-ready-b: #D3C7F5;
+  --c-ready-t: #5B3FBF;
+  --c-done: #EAF8EF;
+  --c-done-b: #BEE5CC;
+  --c-done-t: #1F8A4C;
+  --warn: #F5A623;
+  --danger: #E23744;
+  --ok: #3AB757;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body { 
+  margin: 0; 
+  background: var(--background); 
+  color: var(--foreground); 
+  font-family: 'Okra', Helvetica, Arial, sans-serif; 
+}
+
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+
+/* Custom Scrollbar for Categories */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e2e2e2;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c0c0c0;
+}
+
+/* Base Form Elements */
+.checkout-input, select { 
+  background: #ffffff; 
+  border: 1px solid #e0e0e0; 
+  border-radius: 12px; 
+  color: #1c1c1c; 
+  font-size: 14px; 
+  outline: none; 
+  padding: 14px 16px; 
+  width: 100%; 
+  transition: all 0.2s;
+}
+.checkout-input:focus, select:focus { 
+  border-color: #E23744; 
+  box-shadow: 0 0 0 1px #E23744;
+}
+.field-label { 
+  color: #696969; 
+  display: block; 
+  font-size: 12px; 
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.field-label select { 
+  display: block; 
+  margin-top: 6px; 
+}
+
+/* Modals */
+.back-button { 
+  align-items: center; 
+  background: transparent; 
+  border: none; 
+  color: #696969; 
+  display: flex; 
+  gap: 8px; 
+  padding: 0; 
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s; 
+}
+.back-button:hover { 
+  color: #E23744; 
+}
+.mode-icon { 
+  align-items: center; 
+  background: #fff0f1; 
+  border-radius: 12px; 
+  color: #E23744; 
+  display: flex; 
+  height: 40px; 
+  justify-content: center; 
+  width: 40px; 
+}
+.eyebrow { 
+  color: #E23744; 
+  font-size: 11px; 
+  font-weight: 700; 
+  letter-spacing: 1px; 
+  text-transform: uppercase; 
+}
+.section-title { 
+  font-size: 24px; 
+  line-height: 1.2; 
+  font-weight: 700;
+}
+.primary-button { 
+  align-items: center; 
+  background: #E23744; 
+  border: 0; 
+  border-radius: 12px; 
+  color: #fff; 
+  display: flex; 
+  font-size: 16px; 
+  font-weight: 700; 
+  gap: 8px; 
+  justify-content: center; 
+  padding: 14px 20px; 
+  transition: background 0.2s; 
+}
+.primary-button:hover:not(:disabled) { 
+  background: #D12532; 
+}
+
+@media (prefers-reduced-motion: reduce) { 
+  *, *::before, *::after { 
+    animation-duration: .01ms !important; 
+    scroll-behavior: auto !important; 
+    transition-duration: .01ms !important; 
+  } 
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

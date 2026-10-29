@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // Trigger webhook if we went back to preparing
-    if (newStatus === 'preparing' && order.status !== 'preparing') {
+    if (newStatus === 'preparing' && order.status !== 'preparing' && order.order_type !== 'dine-in') {
       await notifyStatusWebhook(order.order_number, "preparing", undefined, { is_update: true });
     }
 

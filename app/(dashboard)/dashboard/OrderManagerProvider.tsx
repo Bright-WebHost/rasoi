@@ -312,8 +312,8 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
 
       // Trigger Webhook
       try {
-        if (previousStatus === 'new' && nextStatus === 'preparing' && order.source !== 'pos') {
-          // Send invoice + order confirmation ONLY when admin accepts
+        if (previousStatus === 'new' && nextStatus === 'preparing' && order.source !== 'pos' && order.order_type !== 'dine-in') {
+          // Delivery and takeaway get their invoice when accepted. Dine-in QR orders get one final bill only when staff closes the table.
           const itemsArr = Array.isArray(order.items_json) ? order.items_json : [];
           notifyOrderCreatedWebhook({
             order_number: order.order_number,

@@ -350,7 +350,7 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     
     // Fetch both orders
     const { data: sourceOrder } = await adminClient.from('orders').select('items_json, total').eq('id', sourceOrderId).single();
-    const { data: targetOrder } = await adminClient.from('orders').select('items_json, total, status, order_number').eq('id', targetOrderId).single();
+    const { data: targetOrder } = await adminClient.from('orders').select('items_json, total, status, order_number, order_type').eq('id', targetOrderId).single();
     
     if (!sourceOrder || !targetOrder) return { success: false, error: 'Order not found' };
     
@@ -399,7 +399,7 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     await adminClient.from('restaurant_tables').update({ is_active: false, current_order_id: null }).eq('table_number', sourceTableNumber);
     
     // Notify webhook for target order
-    if (newStatus === 'preparing' && targetOrder.status !== 'preparing') {
+    if (newStatus === 'preparing' && targetOrder.status !== 'preparing' && targetOrder.order_type !== 'dine-in') {
       const { notifyStatusWebhook } = await import("@/lib/server/notify");
       await notifyStatusWebhook(targetOrder.order_number, 'preparing', undefined, { is_update: true });
     }

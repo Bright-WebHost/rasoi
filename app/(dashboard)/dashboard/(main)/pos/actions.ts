@@ -69,8 +69,8 @@ export async function createPosOrder(payload: PosOrderPayload) {
     // and go straight to 'preparing' (kitchen)
     await adminClient.from("orders").update({ status: "preparing" }).eq("id", data.id);
 
-    // Counter orders are accepted on creation: send the invoice + confirmation once, if we have a number.
-    if (payload.customer_phone && payload.customer_phone.replace(/D/g, "").length >= 10) {
+    // Counter delivery/takeaway orders get an invoice at creation. Dine-in gets its final bill when staff closes the table.
+    if (payload.order_type !== "dine-in" && payload.customer_phone && payload.customer_phone.replace(/\D/g, "").length >= 10) {
       await notifyOrderCreatedWebhook({
         order_number: data.order_number,
         customer_phone: payload.customer_phone,

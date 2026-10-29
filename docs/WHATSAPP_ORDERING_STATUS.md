@@ -17,7 +17,7 @@ YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud
 | `ycloud_event_inbox` migration | Applied 2026-10-29 (approved); RLS on, anon/authenticated denied | catalog query |
 | PostgreSQL concurrency | Verified: 20 parallel retries → 1 row; 10 event ids for one message → 1 row; status events allowed | `RUN_DB_TESTS=1 node --test test/*.mjs` |
 | Rasoi DB | Single environment (also used by Vercel); 22 menu items, 0 orders, 0 customers | read-only query |
-| `orders_paused` | `true` | `settings` table |
+| `orders_paused` | `false`; public endpoint returns `isOpen=true` | Production Supabase + `/api/settings/public` read-back (2026-10-29) |
 | YCloud webhook endpoint | Active; subscribed to `whatsapp.inbound_message.received` only; signing secret matches `.env.local`. Keep status events excluded until the matching app deployment is live. | YCloud API read-back (2026-10-29) |
 | Owner live message check | Passed: inbound event processed, Order Bridge succeeded, and owner received the paused-orders reply. Two status events caused 400s and false empty inbound rows; the subscription was removed and those rows deleted while inbox audit records were retained. | Supabase inbox/message read-back and n8n execution records (2026-10-29) |
 | Code verification (2026-10-29) | Standard test suite: 11 passed, 1 opt-in DB test skipped; TypeScript check and production build passed. Targeted lint for the four core YCloud files passed. Whole-repo lint remains failing (212 errors, 98 warnings). | `node --test test/*.mjs`, `npx tsc --noEmit`, `npx next build`, targeted ESLint, `npm run lint` |
@@ -42,7 +42,7 @@ YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud
 
 ## Pending approvals / blockers
 
-1. Owner is ready to accept real orders. Keep ordering paused until the updated app is deployed, restaurant details and delivery riders are configured, and the YCloud status handler is verified; then run one controlled takeaway order and verify the Status Notifier.
+1. Orders are currently open in production per the live settings check. Before treating delivery fulfillment as ready, configure the public restaurant address, phone, and city and activate a rider. Verify status callbacks and run a controlled takeaway order before claiming the complete order-to-WhatsApp lifecycle is proven.
 
 ## Pabbas parity build (owner request: same workflows, Rasoi name)
 
@@ -78,17 +78,28 @@ Go-live configuration (owner confirmed set and YCloud webhook URL checked):
 
 The owner confirmed readiness to accept real orders and supplied delivery pincodes `575028`, `575001`, and `575002`. Those pincodes are active in production. The production database migration `20261029_ycloud_status_and_atomic_orders.sql` is applied, including the atomic idempotent order RPC and outbound message status table. Live n8n workflows have corrected YCloud/Supabase credentials and the Order Bridge now supplies a stable idempotency key.
 
-The corresponding Next.js source changes are **not deployed**. This workspace has no Vercel CLI login or linked project, GitHub connector access is read-only, and the local remote check did not complete. Production `orders_paused` remains `true`; do not unpause or subscribe YCloud `whatsapp.message.updated` until the matching app code is deployed and verified.
+Production now returns `ordersPaused=false` and `isOpen=true`; Delivery, Takeaway, and Dine-in are enabled, and all three supplied pincodes are active. The paused reply should stop on fresh website/WhatsApp requests. No real WhatsApp order was created for this verification.
 
-Before full delivery go-live, configure the missing public restaurant address, phone, and city, and activate at least one delivery rider. The YCloud account also has no approved WhatsApp template, so Blast Sender cannot send campaigns until an approved template is available. Keep those features disabled/unverified in the meantime.
+The requested dashboard account exists in Supabase Auth and `staff_members` with the active `admin` role. Password sign-in, the `staff_check` RPC, and the staff row policy passed. The owner later confirmed dashboard login works, and a logged-in production `/dashboard` view was visible during the 2026-10-29 audit. This supersedes the earlier unauthenticated 404 probe; do not treat that probe as the current dashboard state.
 
-After deployment, verify the production build and webhook path, enable YCloud message status events, inspect the inbox drain and n8n executions, then unpause and run the owner-authorized controlled takeaway order. Confirm the customer reply and Status Notifier before treating the system as live.
+Delivery is enabled, but delivery fulfillment needs a rider and complete public restaurant details. The YCloud account has no approved WhatsApp template, so campaign sending is unavailable until one is approved.
+
+## Feature audit (2026-10-29)
+
+- The production admin dashboard rendered in an authenticated browser session. Source routes exist for orders, kitchen, POS, tables, menu, riders, live chat, contacts, blast campaigns, analytics, and settings. This confirms dashboard access and page availability; it is not a click-through test of every action.
+- The public menu API returned 21 items, and the customer menu plus admin menu editor are implemented. The editor supports item details, categories, prices, availability, variants, images, pinning, and deletion. Admin-only menu writes are enforced by Supabase RLS.
+- YCloud inbound messages are accepted by the signed webhook, persisted in the inbox, and forwarded to the active Rasoi n8n Order Bridge. The owner previously confirmed an inbound message reached the bridge and got a reply. After orders were unpaused, no new live WhatsApp message or real order was sent as part of this audit, so that fresh end-to-end path remains unverified.
+- YCloud status callbacks are not subscribed, so message delivery/read status updates are not active. No approved WhatsApp templates are available, so campaign blasts cannot currently send.
+- Delivery operations still need at least one active rider and public restaurant address, phone, and city. AI tool calls are configured but still require a live end-to-end verification.
+- The Pabbas technical document describes its Stage A ordering demo and labels Meta WhatsApp integration and the AI conversational layer as future stages. Rasoi uses YCloud for its production WhatsApp path, so it is not a literal Meta implementation of that roadmap. The document does not define an admin-dashboard feature checklist.
+
+Next production verification: enable YCloud message status events only after confirming the matching handler is deployed, inspect inbox-drain and n8n executions, then run the owner-authorized controlled takeaway order and confirm its customer reply and Status Notifier.
 
 Verification of the current local code: `npx tsc --noEmit`, targeted ESLint, and `npx next build` pass. `node --test test/*.mjs` passes 14 tests; the opt-in DB test is skipped unless `RUN_DB_TESTS=1` is set. The opt-in integration suite passed separately against the production database with self-cleaning test rows. Whole-repo lint still has pre-existing failures.
 
 ## Next milestones
 
-1. Inbound configuration, workflow activation, and the paused-reply test are complete. Real-order activation waits on app deployment and delivery operations setup, despite the owner's readiness.
+1. Inbound configuration, workflow activation, the paused-reply test, and dashboard access are confirmed. Orders are open. Fresh post-unpause WhatsApp ordering, status callbacks, and full delivery operations still need verification/setup.
 2. Delivery to n8n is at-least-once. Inbound message uniqueness and atomic order idempotency are now enforced by the applied database migration and Order Bridge key. Outbound-message deduplication remains future work.
 3. Rasoi inbound AI bridge. AI: owner chose to reuse the existing n8n credential
    `OpenAI account` (`qoyVBVk1ojHK9xi0`, also used by Pabbas) — usage and billing are shared; do not

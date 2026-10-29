@@ -177,7 +177,15 @@ export default function PosBoard() {
 
   const categories = useMemo(() => {
     const cats = new Set(menuItems.map((item) => item.category));
-    return ["All", ...Array.from(cats)];
+    return ["All", ...Array.from(cats).sort((a, b) => a.localeCompare(b))];
+  }, [menuItems]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of menuItems) {
+      counts.set(item.category, (counts.get(item.category) || 0) + 1);
+    }
+    return counts;
   }, [menuItems]);
 
   const filteredItems = useMemo(() => {
@@ -362,61 +370,92 @@ export default function PosBoard() {
     <div className="flex flex-col lg:flex-row h-full min-h-[600px] w-full overflow-hidden bg-white shadow-sm border border-[#EAF0F6] lg:rounded-2xl lg:m-4 lg:w-[calc(100%-32px)] lg:h-[calc(100vh-120px)]">
       
       {/* LEFT: Menu Area */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#F8FAFB]">
-        {/* Header / Search */}
-        <div className="px-6 py-5 border-b border-[#EAF0F6] bg-white flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-[24px] font-black tracking-tight text-[#0A1017] leading-none mb-1.5">Point of Sale</h1>
-              <p className="text-[13px] font-bold text-[#8799AF]">Walk-in order management</p>
-            </div>
-            <button 
-              onClick={() => setShowActiveOrders(prev => !prev)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAF3FF] text-[#1A5FA8] hover:bg-[#DCE9FA] font-extrabold text-[12px] border border-[#B8D5F6] transition-colors shadow-sm"
-            >
-              <ListOrdered className="h-4 w-4" />
-              Active Orders ({activePosOrders.length})
-            </button>
+      <div className="flex min-w-0 flex-1 bg-[#F8FAFB]">
+        {/* Desktop category filters follow the left rail used in Oceana POS. */}
+        <aside className="hidden xl:flex w-[176px] shrink-0 flex-col border-r border-[#EAF0F6] bg-white">
+          <div className="border-b border-[#EAF0F6] px-4 py-4">
+            <p className="text-[12px] font-black uppercase tracking-wider text-[#8799AF]">Filter dishes</p>
           </div>
-          <div className="relative w-full sm:w-[320px] shrink-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[#A1B2C6]" />
-            <input
-              type="text"
-              placeholder="Search items by name or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-[#EAF0F6] bg-white text-[14px] font-bold text-[#0A1017] shadow-[0_2px_8px_rgba(0,0,0,0.02)] focus:border-[#0D6EFD] focus:ring-4 focus:ring-[#0D6EFD]/10 outline-none transition-all placeholder:text-[#A1B2C6]"
-            />
-          </div>
-        </div>
+          <nav aria-label="Menu categories" className="flex-1 space-y-1 overflow-y-auto p-2">
+            {categories.map((cat) => {
+              const selected = selectedCategory === cat;
+              const count = cat === "All" ? menuItems.length : categoryCounts.get(cat) || 0;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-[13px] font-extrabold transition ${
+                    selected
+                      ? "bg-[#0A1017] text-white shadow-sm"
+                      : "text-[#6B7A90] hover:bg-[#F3F6F9] hover:text-[#0A1017]"
+                  }`}
+                >
+                  <span className="min-w-0 truncate">{cat === "All" ? "All dishes" : cat}</span>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black ${selected ? "bg-white/15 text-white" : "bg-[#F3F6F9] text-[#8799AF]"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-        {/* Category Filter */}
-        <div className="px-6 py-4 flex gap-2.5 overflow-x-auto scrollbar-hide border-b border-[#EAF0F6] bg-white/50 backdrop-blur-sm shadow-[inset_0_-1px_0_rgba(0,0,0,0.02)]">
-          {categories.map((cat) => {
-            const catColors = getCategoryColor(cat);
-            return (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Header / Search */}
+          <div className="px-4 py-4 xl:px-6 xl:py-5 border-b border-[#EAF0F6] bg-white flex flex-col 2xl:flex-row gap-4 justify-between items-start 2xl:items-center">
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-[24px] font-black tracking-tight text-[#0A1017] leading-none mb-1.5">Point of Sale</h1>
+                <p className="text-[13px] font-bold text-[#8799AF]">Walk-in order management</p>
+              </div>
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`whitespace-nowrap px-4 py-2 rounded-xl text-[13px] font-extrabold transition-all border flex items-center gap-2 ${
-                  selectedCategory === cat
-                    ? "bg-[#0A1017] text-white border-[#0A1017] shadow-[0_4px_12px_rgba(10,16,23,0.15)] transform scale-[1.02]"
-                    : "bg-white text-[#6B7A90] border-[#EAF0F6] hover:border-[#C9D4E0] hover:text-[#0A1017] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-                }`}
+                onClick={() => setShowActiveOrders(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#EAF3FF] text-[#1A5FA8] hover:bg-[#DCE9FA] font-extrabold text-[12px] border border-[#B8D5F6] transition-colors shadow-sm"
               >
-                {cat !== "All" && (
-                  <span className={`w-2 h-2 rounded-full ${catColors.accent}`} />
-                )}
-                {cat}
+                <ListOrdered className="h-4 w-4" />
+                Active Orders ({activePosOrders.length})
               </button>
-            );
-          })}
-        </div>
+            </div>
+            <div className="relative w-full sm:w-[320px] 2xl:w-[280px] shrink-0">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[#A1B2C6]" />
+              <input
+                type="text"
+                placeholder="Search items by name or ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-[12px] border border-[#EAF0F6] bg-white text-[14px] font-bold text-[#0A1017] shadow-[0_2px_8px_rgba(0,0,0,0.02)] focus:border-[#0D6EFD] focus:ring-4 focus:ring-[#0D6EFD]/10 outline-none transition-all placeholder:text-[#A1B2C6]"
+              />
+            </div>
+          </div>
+
+          {/* Keep category selection reachable on smaller screens. */}
+          <div className="xl:hidden flex gap-2 overflow-x-auto border-b border-[#EAF0F6] bg-white px-4 py-3 scrollbar-hide">
+            {categories.map((cat) => {
+              const selected = selectedCategory === cat;
+              const count = cat === "All" ? menuItems.length : categoryCounts.get(cat) || 0;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-[13px] font-extrabold transition ${
+                    selected ? "border-[#0A1017] bg-[#0A1017] text-white" : "border-[#EAF0F6] bg-white text-[#6B7A90]"
+                  }`}
+                >
+                  {cat === "All" ? "All dishes" : cat}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-black ${selected ? "bg-white/15" : "bg-[#F3F6F9] text-[#8799AF]"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-6 relative">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 xl:p-6 relative">
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div key={i} className="h-[140px] bg-white rounded-[20px] border border-[#EAF0F6] animate-pulse" />
               ))}
@@ -435,7 +474,7 @@ export default function PosBoard() {
                 <span className="bg-[#FEF1F2] text-[#E23744] p-1.5 rounded-lg"><CheckCircle className="w-4 h-4" /></span>
                 <h2 className="text-[16px] font-black tracking-tight text-[#0A1017]">Quick Add (Trending 🔥)</h2>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 2xl:grid-cols-3 gap-3">
                 {menuItems.filter(i => i.available).slice(0, 5).map((item) => {
                   const colors = getCategoryColor(item.category);
                   return (
@@ -460,7 +499,7 @@ export default function PosBoard() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-32 lg:pb-20">
+          <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-32 lg:pb-20">
               {filteredItems.map((item) => {
                 const colors = getCategoryColor(item.category);
                 return (
@@ -526,6 +565,7 @@ export default function PosBoard() {
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {/* RIGHT: Cart Area */}

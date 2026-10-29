@@ -30,20 +30,22 @@ export default async function DashboardLayout({
   return (
     <StaffProvider staff={staff}>
       <OrderManagerProvider initialOrders={initialOrders} autoPrint={settings.autoPrint}>
-      <div className="flex min-h-screen bg-[#F8FAFB] text-[#0A1017]">
-        <Sidebar restaurantName={settings.restaurantName} logoUrl={settings.logoUrl} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="print:hidden">
-            <Header />
+        <div className="dashboard-shell">
+          <div className="flex min-h-screen bg-[#F8FAFB] text-[#0A1017]">
+            <Sidebar restaurantName={settings.restaurantName} logoUrl={settings.logoUrl} />
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="print:hidden">
+                <Header />
+              </div>
+              <main className="flex-1 px-4 md:px-6 pb-6 overflow-x-hidden print:p-0 print:overflow-visible print:bg-white print:m-0">
+                {children}
+              </main>
+            </div>
           </div>
-          <main className="flex-1 px-4 md:px-6 pb-6 overflow-x-hidden print:p-0 print:overflow-visible print:bg-white print:m-0">
-            {children}
-          </main>
+          <GlobalNewOrderPopup />
+          <GlobalAssignRiderPopup />
         </div>
-      </div>
-      <GlobalNewOrderPopup />
-      <GlobalAssignRiderPopup />
-    </OrderManagerProvider>
+      </OrderManagerProvider>
     </StaffProvider>
   );
 }

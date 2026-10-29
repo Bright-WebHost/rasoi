@@ -63,9 +63,9 @@ fencing on `attempts`, backoff 30s·2ⁿ ≤ 1h, `failed` after 8).
 
 ## Pending — in order
 
-1. The owner is ready to accept real orders. Keep `orders_paused = true` until the updated app is
-   deployed, restaurant details/riders are configured, and the YCloud status handler is verified;
-   then run one controlled takeaway order and verify the Status Notifier.
+1. Production `orders_paused` is now `false`; `/api/settings/public` reports `isOpen=true` and all
+   order types plus the supplied pincodes are active. The owner-authorized request to resume orders
+   has been applied. Verify the first live customer reply and order flow.
 
 ## Known risks / future work
 
@@ -74,7 +74,8 @@ fencing on `attempts`, backoff 30s·2ⁿ ≤ 1h, `failed` after 8).
   (Pabbas has none either).
 - `RASOI_N8N_API_KEY` is over-scoped (can delete/activate workflows, delete credentials) and lacks
   folder/credential-list/credential-test scopes. Replace with a narrower key when convenient.
-- Constant-time secret comparison is implemented in the local AI tool routes but is not deployed yet.
+- Constant-time secret comparison is in the pushed source; production route behavior still needs to be
+  confirmed against the active Vercel deployment.
 - YCloud `whatsapp.message.updated` remains unsubscribed until the local status-persistence handler is
   deployed; the earlier subscription sent these events through inbound handling and created malformed
   customer messages.
@@ -86,9 +87,9 @@ fencing on `attempts`, backoff 30s·2ⁿ ≤ 1h, `failed` after 8).
 
 The owner confirmed readiness to accept real orders and supplied delivery pincodes `575028`, `575001`, and `575002`; these are active in production. Migration `20261029_ycloud_status_and_atomic_orders.sql` is applied, adding atomic idempotent order creation and local YCloud outbound status persistence. n8n's live Rasoi workflows have been updated with the Rasoi YCloud/Supabase credentials and the Order Bridge now passes a stable WhatsApp idempotency key.
 
-The matching Next.js code is still only in the local workspace. No Vercel CLI login or project link is available here; the connected GitHub integration is read-only and the local remote dry-run did not complete. Keep `orders_paused=true` and leave the YCloud endpoint subscribed to inbound events only until the app code is deployed and verified. Do not run a real order test against the old deployment.
+Production settings show orders open, with Delivery, Takeaway, and Dine-in enabled. The requested dashboard admin account is created; password sign-in and staff authorization checks pass. The owner confirmed login works, and a logged-in production dashboard view was visible during the 2026-10-29 audit. This supersedes the earlier unauthenticated 404 observation.
 
-Production settings still lack the public restaurant address, phone, and city, and there are no active delivery riders. YCloud has no approved template, so Blast Sender is configured but cannot send campaigns. These are operational setup blockers for full delivery and marketing readiness. After app deployment, recheck the public settings, activate riders, subscribe to `whatsapp.message.updated`, confirm inbox/n8n health, and only then unpause and run the owner-authorized controlled takeaway order.
+Production settings still lack the public restaurant address, phone, and city, and there are no active delivery riders. YCloud has no approved template, so Blast Sender is configured but cannot send campaigns. Delivery fulfillment and marketing remain incomplete. Orders are already open; do not describe the system as paused. Before claiming the full order-to-WhatsApp lifecycle is verified, confirm the status handler is deployed, enable `whatsapp.message.updated`, inspect inbox/n8n health, and run the owner-authorized controlled takeaway order. No post-unpause WhatsApp order was created during the feature audit.
 
 Local verification on 2026-10-29: `npx tsc --noEmit`, targeted ESLint, and `npx next build` pass. `node --test test/*.mjs` passes 14 tests with the opt-in DB test skipped. The opt-in integration suite previously passed against production with self-cleaning rows. Whole-repo lint retains pre-existing failures.
 

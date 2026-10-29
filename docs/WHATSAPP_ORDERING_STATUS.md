@@ -48,11 +48,15 @@ credentials; webhook paths become `rasoi-*`; Groq transcription removed (OpenAI 
 webhook now requires `x-rasoi-whatsapp-secret` (dashboard sends it). It refuses to create any workflow
 that still references Pabbas. Dry run output: `n8n/rasoi_build/`. Created workflows are inactive.
 
-Blockers:
-- n8n credentials `Rasoi Supabase (service key)` (Custom Auth: `apikey` + `Authorization: Bearer`)
-  and `Rasoi YCloud API Key` (Header Auth `X-API-Key`) must exist; their ids go in
-  `n8n/rasoi_credential_ids.json`.
-- `supabase/migrations/20261029_inbound_bundle.sql` (port of Pabbas phase 12) must be applied.
+Created 2026-10-29, all **inactive**, no Pabbas references (API read-back):
+Typing Indicator `9MF4AL9PWNo55Tte`, Order Bridge `mR5qLGoAgFZmXajx`, Status Notifier `o5Z4RoWXKjiipzLV`,
+Agent Reply Sender `945xE8ixGgeGGZQZ`, Staff AI Toggle `v6nMJs3qq8q5Mywn`, Blast Sender `y4GS5pPJlFAHwgbY`,
+Rating Request `KmjniuLxGyj8p25P`. Credentials: `Rasoi Supabase (service key)` `DMaJVMEDKkVCsRcL`,
+`Rasoi YCloud API Key` `uh9mDw6j89RNpyQb`. `inbound_bundle` migration applied (by owner).
+Superseded, inactive: `Rasoi | WhatsApp Inbound — DEV`, `Rasoi | WhatsApp AI Bridge — DEV`.
+Still needed: `Rasoi | Inbox Drain — DEV` (retry scheduler).
+
+Go-live checklist:
 - Vercel: `N8N_WHATSAPP_INBOUND_WEBHOOK_URL`, `N8N_STATUS_WEBHOOK_URL`, `N8N_ORDER_CREATED_WEBHOOK_URL`,
   `N8N_AGENT_REPLY_WEBHOOK_URL`, `N8N_AI_TOGGLE_WEBHOOK_URL`, `N8N_BLAST_WEBHOOK_URL` →
   `https://staff.brightmedia.tech/webhook/rasoi-{whatsapp-inbound,status,order-created,agent-reply,ai-toggle,blast}`.

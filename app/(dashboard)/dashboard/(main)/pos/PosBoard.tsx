@@ -386,13 +386,13 @@ export default function PosBoard() {
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setSelectedCategory(cat)}
-                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-[13px] font-extrabold transition ${
+                  className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-[13px] font-extrabold transition ${
                     selected
                       ? "bg-[#0A1017] text-white shadow-sm"
                       : "text-[#6B7A90] hover:bg-[#F3F6F9] hover:text-[#0A1017]"
                   }`}
                 >
-                  <span className="min-w-0 truncate">{cat === "All" ? "All dishes" : cat}</span>
+                  <span className="min-w-0 truncate whitespace-nowrap">{cat === "All" ? "All dishes" : cat}</span>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black ${selected ? "bg-white/15 text-white" : "bg-[#F3F6F9] text-[#8799AF]"}`}>
                     {count}
                   </span>
@@ -499,7 +499,7 @@ export default function PosBoard() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-32 lg:pb-20">
+          <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3 pb-32 lg:pb-20">
               {filteredItems.map((item) => {
                 const colors = getCategoryColor(item.category);
                 return (
@@ -507,32 +507,32 @@ export default function PosBoard() {
                     key={item.id}
                     disabled={!item.available}
                     onClick={() => handleProductClick(item)}
-                    className={`group relative flex flex-col text-left rounded-[20px] border p-5 transition-all duration-300 h-full ${
+                    className={`group relative flex min-h-[210px] flex-col text-left rounded-[16px] border p-3 transition-all duration-300 h-full ${
                       item.available 
                         ? `${colors.bg} ${colors.border} ${colors.hover} hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 cursor-pointer` 
                         : "border-[#EAF0F6] bg-[#F8FAFB] opacity-60 cursor-not-allowed grayscale"
                     }`}
                   >
-                  <div className="mb-3 flex justify-between items-start gap-2 w-full">
-                    <span className="inline-flex items-center justify-center rounded-[8px] bg-[#F3F6F9] px-2.5 py-1 text-[11px] font-black tracking-wide text-[#6B7A90] group-hover:bg-white transition-colors border border-[#EAF0F6] group-hover:border-[#EAF0F6]">
+                  <div className="mb-2 flex justify-between items-start gap-2 w-full">
+                    <span className="inline-flex items-center justify-center rounded-[8px] bg-[#F3F6F9] px-2 py-0.5 text-[11px] font-black tracking-wide text-[#6B7A90] group-hover:bg-white transition-colors border border-[#EAF0F6] group-hover:border-[#EAF0F6]">
                       {item.item_number ? `#${item.item_number}` : "—"}
                     </span>
                     {item.variants && item.variants.options && item.variants.options.length > 0 && (
-                      <span className="text-[10px] font-black text-[#0D6EFD] bg-[#EAF3FF] px-2.5 py-1 rounded-full uppercase tracking-wider">
+                      <span className="text-[10px] font-black text-[#0D6EFD] bg-[#EAF3FF] px-2 py-0.5 rounded-full uppercase tracking-wider">
                         Options
                       </span>
                     )}
                   </div>
                   {item.image_url ? (
-                    <div className="w-full aspect-video rounded-xl overflow-hidden mb-3 bg-[#EAF0F6] shrink-0 border border-[#EAF0F6]">
+                    <div className="w-full h-[68px] rounded-lg overflow-hidden mb-2 bg-[#EAF0F6] shrink-0 border border-[#EAF0F6]">
                       <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" />
                     </div>
                   ) : null}
-                  <h3 className="text-[15px] font-black text-[#0A1017] leading-[1.3] mb-2 line-clamp-2">
+                  <h3 className="text-[14px] font-black text-[#0A1017] leading-[1.25] mb-1 line-clamp-2">
                     {item.item_name}
                   </h3>
-                  <div className="mt-auto pt-3 flex items-center justify-between w-full border-t border-dashed border-[#EAF0F6]">
-                    <span className="text-[16px] font-black text-[#E23744]">
+                  <div className="mt-auto pt-2 flex items-center justify-between w-full border-t border-dashed border-[#EAF0F6]">
+                    <span className="text-[15px] font-black text-[#E23744]">
                       ₹{item.price}
                     </span>
                     {!item.available && (
@@ -620,7 +620,7 @@ export default function PosBoard() {
         </div>
 
         <div className="flex-1 overflow-y-auto bg-[#F8FAFB]">
-          <div className="p-5 space-y-3">
+          <div className="p-3 space-y-2">
             {cart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-[200px] text-[#8799AF] opacity-80">
                 <div className="w-16 h-16 bg-[#EAF0F6] rounded-full flex items-center justify-center mb-4">
@@ -631,31 +631,33 @@ export default function PosBoard() {
               </div>
             ) : (
               cart.map((c) => (
-                <div key={c.cartId} className="flex flex-col gap-3 p-4 rounded-[16px] bg-white border border-[#EAF0F6] shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:border-[#C9D4E0]">
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="flex flex-col flex-1">
-                      <span className="text-[14px] font-black text-[#0A1017] leading-[1.3]">{c.item_name}</span>
-                      <span className="text-[12px] font-extrabold text-[#8799AF] mt-0.5">₹{c.unit_price} each</span>
+                <div key={c.cartId} className="flex min-w-0 items-center gap-2 rounded-xl border border-[#EAF0F6] bg-white px-2.5 py-2 shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all hover:border-[#C9D4E0]">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] font-black text-[#0A1017]" title={c.item_name}>{c.item_name}</span>
+                      <span className="shrink-0 text-[11px] font-extrabold text-[#8799AF]">₹{c.unit_price} each</span>
                     </div>
-                    <span className="text-[15px] font-black text-[#0A1017]">₹{c.unit_price * c.quantity}</span>
+                    <span className="shrink-0 text-[13px] font-black text-[#0A1017]">₹{c.unit_price * c.quantity}</span>
                   </div>
                   
-                  <div className="flex items-center justify-between mt-1 pt-3 border-t border-dashed border-[#EAF0F6]">
-                    <div className="flex items-center bg-[#F8FAFB] rounded-[10px] border border-[#EAF0F6] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                  <div className="flex shrink-0 items-center">
+                    <div className="flex items-center overflow-hidden rounded-lg border border-[#EAF0F6] bg-[#F8FAFB]">
                       <button 
                         onClick={() => updateQuantity(c.cartId, -1)}
-                        className="w-9 h-9 flex items-center justify-center text-[#8799AF] hover:text-[#E23744] hover:bg-[#FDE8E8] transition-colors"
+                        aria-label={c.quantity === 1 ? `Remove ${c.item_name}` : `Decrease ${c.item_name} quantity`}
+                        className="flex h-7 w-7 items-center justify-center text-[#8799AF] transition-colors hover:bg-[#FDE8E8] hover:text-[#E23744]"
                       >
-                        {c.quantity === 1 ? <Trash2 className="h-3.5 w-3.5" /> : <Minus className="h-4 w-4" />}
+                        {c.quantity === 1 ? <Trash2 className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
                       </button>
-                      <div className="w-10 h-9 flex items-center justify-center text-[14px] font-black text-[#0A1017] bg-white border-x border-[#EAF0F6]">
+                      <div className="flex h-7 min-w-7 items-center justify-center border-x border-[#EAF0F6] bg-white px-1 text-[12px] font-black text-[#0A1017]">
                         {c.quantity}
                       </div>
                       <button 
                         onClick={() => updateQuantity(c.cartId, 1)}
-                        className="w-9 h-9 flex items-center justify-center text-[#8799AF] hover:text-[#0D5424] hover:bg-[#E6F4EA] transition-colors"
+                        aria-label={`Increase ${c.item_name} quantity`}
+                        className="flex h-7 w-7 items-center justify-center text-[#8799AF] transition-colors hover:bg-[#E6F4EA] hover:text-[#0D5424]"
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>

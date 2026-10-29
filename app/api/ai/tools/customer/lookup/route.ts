@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeSecretEquals } from '@/lib/server/internal-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateToken, hashToken, TOKEN_TTL_SECONDS } from '@/lib/session/token';
 
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim();
     const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim();
 
-    if (!expectedSecret || secretHeader !== expectedSecret) {
+    if (!timingSafeSecretEquals(secretHeader, expectedSecret)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

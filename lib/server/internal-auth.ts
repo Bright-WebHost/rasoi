@@ -11,12 +11,16 @@ export function internalSecret(): string {
 
 export const INTERNAL_SECRET_HEADER = 'x-rasoi-whatsapp-secret'
 
+/** Constant-time comparison for configured server-to-server secrets. */
+export function timingSafeSecretEquals(provided: string | null | undefined, expected: string | null | undefined): boolean {
+  const supplied = Buffer.from((provided ?? '').trim(), 'utf8')
+  const configured = Buffer.from((expected ?? '').trim(), 'utf8')
+  return supplied.length > 0 && configured.length > 0 && supplied.length === configured.length && timingSafeEqual(supplied, configured)
+}
+
 /** True only if the secret is configured and the request carries it. Fails closed. */
 export function isInternalRequest(request: Request): boolean {
   const expected = internalSecret()
   const provided = request.headers.get(INTERNAL_SECRET_HEADER)?.trim() || ''
-  if (!expected || !provided) return false
-  const a = Buffer.from(provided)
-  const b = Buffer.from(expected)
-  return a.length === b.length && timingSafeEqual(a, b)
+  return timingSafeSecretEquals(provided, expected)
 }

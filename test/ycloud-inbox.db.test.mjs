@@ -6,7 +6,7 @@ import crypto from 'node:crypto'
 import dotenv from 'dotenv'
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
-import { persistYCloudEvent } from '../lib/server/ycloud-webhook.ts'
+import { persistYCloudEvent, persistYCloudMessageStatus } from '../lib/server/ycloud-webhook.ts'
 
 dotenv.config({ path: '.env.local', quiet: true })
 const enabled = process.env.RUN_DB_TESTS === '1'
@@ -18,9 +18,11 @@ test('inbox accepts each event and inbound message exactly once under concurrenc
   await db.connect()
   t.after(async () => {
     await db.query('delete from public.ycloud_event_inbox where provider_event_id like $1', [`${prefix}%`])
+    await db.query('delete from public.ycloud_message_status_events where provider_event_id like $1', [`${prefix}%`])
+    await db.query('delete from public.messages where message_id like $1', [`${prefix}%`])
     await db.end()
   })
-  const count = async (sql, arg) => Number((await db.query(sql, [arg])).rows[0].n)
+  const count = async (sql, ...args) => Number((await db.query(sql, args)).rows[0].n)
   const event = (id, msg) => ({ id, type: 'whatsapp.inbound_message.received', whatsappInboundMessage: { id: msg } })
 
   // Same delivery retried 20 times in parallel.
@@ -38,6 +40,29 @@ test('inbox accepts each event and inbound message exactly once under concurrenc
   const status = { id: `${prefix}-c`, type: 'whatsapp.message.updated', whatsappMessage: { id: `${prefix}-msg-a` } }
   assert.equal((await persistYCloudEvent(admin, status, `${prefix}-msg-a`)).error, null)
   assert.equal(await count('select count(*) n from public.ycloud_event_inbox where provider_message_id = $1', `${prefix}-msg-a`), 2)
+
+  // Status callbacks are retained in their own idempotent table, never treated as chat input.
+  const statusEvent = {
+    id: `${prefix}-status`,
+    type: 'whatsapp.message.updated',
+    whatsappMessage: { id: `${prefix}-ycloud-msg`, externalId: `${prefix}-outbound`, status: 'delivered' },
+  }
+  const statusResults = await Promise.all(Array.from({ length: 10 }, () => persistYCloudMessageStatus(admin, statusEvent)))
+  assert.ok(statusResults.every(r => r.error === null))
+  assert.equal(await count('select count(*) n from public.ycloud_message_status_events where provider_event_id = $1', statusEvent.id), 1)
+
+  // The database guard makes the AI handoff itself idempotent even under concurrent n8n retries.
+  const messageId = `${prefix}-inbound-bundle`
+  const bundleResults = await Promise.all(Array.from({ length: 10 }, () => admin.rpc('inbound_bundle', {
+    p_phone: '919000000002',
+    p_channel_user_id: `${prefix}-channel`,
+    p_message_id: messageId,
+    p_message_type: 'text',
+    p_content: 'synthetic verification',
+  })))
+  assert.ok(bundleResults.every(r => r.error === null))
+  assert.equal(bundleResults.filter(r => r.data?.duplicate === false).length, 1)
+  assert.equal(await count('select count(*) n from public.messages where message_id = $1 and direction = $2', messageId, 'inbound'), 1)
 
   // Parallel workers never claim the same row. Guarded so real events are never touched.
   const real = await count("select count(*) n from public.ycloud_event_inbox where provider_event_id not like $1", `${prefix}%`)

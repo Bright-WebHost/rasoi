@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { closedMessage, isOpenAt } from '@/lib/settings'
 import { getDeliveryPincodes, getSettings } from '@/lib/settings/server'
@@ -7,15 +8,8 @@ export async function POST(request: Request) {
   const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
   const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
-  if (!expectedSecret || secretHeader !== expectedSecret) {
+  if (!timingSafeSecretEquals(secretHeader, expectedSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  let body: any
-  try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
   const adminClient = createAdminClient()

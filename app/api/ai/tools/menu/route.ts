@@ -9,14 +9,25 @@
  */
 
 import { NextResponse } from 'next/server'
+import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+type MenuRow = {
+  id: string
+  item_number: number | null
+  item_name: string
+  category: string | null
+  description: string | null
+  price: number
+  variants: unknown
+}
 
 export async function GET(request: Request) {
   try {
     const aiSecret = request.headers.get('x-rasoi-ai-secret')?.trim()
     const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
     
-    if (!expectedSecret || aiSecret !== expectedSecret) {
+    if (!timingSafeSecretEquals(aiSecret, expectedSecret)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -35,7 +46,7 @@ export async function GET(request: Request) {
     }
 
     // Build the AI-friendly menu response
-    const menu = (items as any[]).map((item) => ({
+    const menu = ((items ?? []) as MenuRow[]).map((item) => ({
       id: item.id,
       item_number: item.item_number,
       item_name: item.item_name,
@@ -46,8 +57,8 @@ export async function GET(request: Request) {
     }))
 
     return NextResponse.json({ menu })
-  } catch (err: any) {
-    console.error('[AI Tool: get_menu] Error:', err)
+  } catch (err) {
+    console.error('[AI Tool: get_menu] Error:', err instanceof Error ? err.message : 'unknown error')
     return NextResponse.json({ error: 'Internal server error.' }, { status: 500 })
   }
 }

@@ -12,6 +12,12 @@ function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'ret
       if (fn === 'claim_ycloud_events') return Promise.resolve({ data: rows, error: null })
       return Promise.resolve({ data: finishStatus(args), error: null })
     },
+    from(table) {
+      return { upsert: async (row, options) => {
+        calls.push({ table, row, options })
+        return { error: null }
+      } }
+    },
   }
 }
 const row = (n) => ({ id: `id-${n}`, provider_event_id: `evt-${n}`, attempts: 1, payload: { id: `evt-${n}`, type: 'whatsapp.inbound_message.received' } })
@@ -56,4 +62,23 @@ test('a lost lease is counted and does not throw', async () => {
 test('claim failure surfaces as an error so the caller can return 503', async () => {
   const admin = { rpc: () => Promise.resolve({ data: null, error: { code: 'x' } }) }
   await assert.rejects(drainYCloudInbox(admin, config), /inbox_claim_failed/)
+})
+
+test('YCloud status events are stored locally and never sent to the inbound workflow', async () => {
+  const statusEvent = {
+    id: 'evt-status-local',
+    type: 'whatsapp.message.updated',
+    whatsappMessage: { id: 'ycloud-msg-1', status: 'read' },
+  }
+  const admin = fakeAdmin([{ id: 'row-status', provider_event_id: statusEvent.id, attempts: 1, payload: statusEvent }])
+  let outboundRequests = 0
+  const result = await drainYCloudInbox(admin, config, { fetchImpl: async () => {
+    outboundRequests += 1
+    return new Response(null, { status: 200 })
+  } })
+  const persisted = admin.calls.find((call) => call.table === 'ycloud_message_status_events')
+  assert.equal(outboundRequests, 0)
+  assert.equal(persisted.row.provider_event_id, statusEvent.id)
+  assert.equal(persisted.row.status, 'read')
+  assert.equal(result.processed, 1)
 })

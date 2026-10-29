@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import { parseYCloudEvent, persistYCloudEvent, verifyYCloudSignature } from '../lib/server/ycloud-webhook.ts'
+import { parseYCloudEvent, persistYCloudEvent, persistYCloudMessageStatus, verifyYCloudSignature, yCloudMessageStatusRow } from '../lib/server/ycloud-webhook.ts'
+import { timingSafeSecretEquals } from '../lib/server/internal-auth.ts'
 
 const secret = 'synthetic-test-secret-do-not-use-in-production'
 const now = Date.now()
@@ -18,6 +19,13 @@ test('accepts valid YCloud HMAC and rejects invalid/stale signatures', () => {
   assert.equal(verifyYCloudSignature(body, signed(body), 'wrong-secret', now), false)
   assert.equal(verifyYCloudSignature(body, 't=bad,s=bad', secret, now), false)
   assert.equal(verifyYCloudSignature(body, signed(body, Math.floor(now / 1000) - 600), secret, now), false)
+})
+
+test('server secret comparisons accept only non-empty exact matches', () => {
+  assert.equal(timingSafeSecretEquals('  same-secret ', 'same-secret'), true)
+  assert.equal(timingSafeSecretEquals('wrong-secret', 'same-secret'), false)
+  assert.equal(timingSafeSecretEquals('', 'same-secret'), false)
+  assert.equal(timingSafeSecretEquals('same-secret', ''), false)
 })
 
 test('requires event and inbound message identifiers', () => {
@@ -67,6 +75,46 @@ test('database unique violations are treated as safe duplicate deliveries', asyn
   assert.equal(result.duplicate, true)
 })
 
+test('YCloud outbound status callbacks are normalized and persisted idempotently', async () => {
+  const event = {
+    id: 'evt-status-1',
+    type: 'whatsapp.message.updated',
+    createTime: '2026-10-29T10:00:00.000Z',
+    whatsappMessage: {
+      id: 'ycloud-message-1',
+      wamid: 'wamid.test-1',
+      externalId: 'rasoi-order-1-confirmed',
+      to: '+919999999999',
+      from: '+918888888888',
+      status: 'delivered',
+    },
+  }
+  assert.deepEqual(yCloudMessageStatusRow(event), {
+    provider_event_id: 'evt-status-1',
+    provider_message_id: 'ycloud-message-1',
+    whatsapp_message_id: 'wamid.test-1',
+    external_id: 'rasoi-order-1-confirmed',
+    status: 'delivered',
+    recipient_phone: '+919999999999',
+    sender_phone: '+918888888888',
+    error_code: null,
+    error_message: null,
+    event_created_at: '2026-10-29T10:00:00.000Z',
+    payload: event,
+  })
+  let stored = null
+  const admin = { from: (table) => ({ upsert: async (row, options) => {
+    assert.equal(table, 'ycloud_message_status_events')
+    assert.equal(options.onConflict, 'provider_event_id')
+    assert.equal(options.ignoreDuplicates, true)
+    stored = row
+    return { error: null }
+  } }) }
+  const result = await persistYCloudMessageStatus(admin, event)
+  assert.equal(result.error, null)
+  assert.equal(stored.status, 'delivered')
+})
+
 test('migration enforces database uniqueness and retry state; route has no order/forwarding side effects', () => {
   const migration = fs.readFileSync(new URL('../supabase/migrations/20261028_ycloud_event_inbox.sql', import.meta.url), 'utf8')
   const route = fs.readFileSync(new URL('../app/api/webhooks/ycloud/whatsapp/route.ts', import.meta.url), 'utf8')
@@ -76,4 +124,8 @@ test('migration enforces database uniqueness and retry state; route has no order
   assert.doesNotMatch(route, /create_customer_order|\/api\/orders|N8N_WHATSAPP_INBOUND_WEBHOOK_URL/)
   assert.match(route, /Temporary webhook storage failure/)
   assert.match(fs.readFileSync(new URL('../supabase/rasoi_initialization.sql', import.meta.url), 'utf8'), /\('orders_paused','true'\)/)
+  const hardening = fs.readFileSync(new URL('../supabase/migrations/20261029_ycloud_status_and_atomic_orders.sql', import.meta.url), 'utf8')
+  assert.match(hardening, /messages_ycloud_inbound_message_id_unique_idx/)
+  assert.match(hardening, /pg_advisory_xact_lock/)
+  assert.match(hardening, /CREATE TABLE IF NOT EXISTS public\.ycloud_message_status_events/)
 })

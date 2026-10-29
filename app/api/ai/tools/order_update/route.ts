@@ -1,20 +1,28 @@
 import { NextResponse } from 'next/server'
+import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 export async function POST(request: Request) {
   const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
   const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
-  if (!expectedSecret || secretHeader !== expectedSecret) {
+  if (!timingSafeSecretEquals(secretHeader, expectedSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: any
+  let parsed: unknown
   try {
-    body = await request.json()
+    parsed = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
+
+  if (!isRecord(parsed)) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  const body = parsed
 
   const { order_id, action, menu_item_id, quantity, customer_id } = body
   if (!order_id || !action || !menu_item_id || !customer_id) {

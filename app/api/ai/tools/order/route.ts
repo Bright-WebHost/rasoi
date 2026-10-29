@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkOrderRules } from '@/lib/settings'
 import { getActivePincodes, getSettings } from '@/lib/settings/server'
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
   const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
   const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
-  if (!expectedSecret || secretHeader !== expectedSecret) {
+  if (!timingSafeSecretEquals(secretHeader, expectedSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -190,7 +191,7 @@ export async function POST(request: Request) {
     p_party_size: Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
   }
 
-  const { data, error } = await (adminClient.rpc as any)('create_customer_order', normalizedPayload)
+  const { data, error } = await adminClient.rpc('create_customer_order', normalizedPayload)
 
   if (error) {
     return NextResponse.json({ error: error.message || 'Order could not be created.' }, { status: 400 })

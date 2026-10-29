@@ -23,6 +23,9 @@ export interface CreateOrderInput {
   customerPhone?: unknown
   /** app_customers.id from a trusted session (website cookie or AI backend) */
   customerId?: string | null
+  channelUserId?: unknown
+  idempotencyKey?: unknown
+  paymentMethod?: unknown
   deliveryAddress?: unknown
   landmark?: unknown
   pincode?: unknown
@@ -32,7 +35,7 @@ export interface CreateOrderInput {
 }
 
 export type CreateOrderResult =
-  | { ok: true; orderId: string; orderNumber: string; orderType: string; status: string; total: number; deliveryFee: number; scheduledFor: string | null }
+  | { ok: true; orderId: string; orderNumber: string; orderType: string; status: string; total: number; deliveryFee: number; scheduledFor: string | null; isDuplicate: boolean }
   | { ok: false; status: number; error: string; code?: string }
 
 const fail = (status: number, error: string, code?: string): CreateOrderResult => ({ ok: false, status, error, code })
@@ -44,18 +47,18 @@ export function normalizeOrderType(value: unknown): 'delivery' | 'takeaway' | 'd
   return null
 }
 
-// Columns added by later migrations. If one is missing (migration not run yet),
-// the order is still saved without it rather than failing for the customer.
-const OPTIONAL_COLUMNS = ['delivery_fee', 'scheduled_for']
-
 export async function createCustomerOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
   const orderType = normalizeOrderType(input.orderType)
   if (!orderType) return fail(400, 'Invalid order type')
+  if (input.source === 'pwa' && !input.customerId) return fail(401, 'Please sign in before placing an order')
 
   const cartItems = input.cartItems
   if (!Array.isArray(cartItems) || cartItems.length === 0 || cartItems.length > MAX_CART_ITEMS) {
     return fail(400, 'Cart cannot be empty')
   }
+  const idempotencyKey = str(input.idempotencyKey)
+  if (input.source === 'whatsapp' && !idempotencyKey) return fail(400, 'A request id is required to place a WhatsApp order')
+  if (idempotencyKey.length > 255) return fail(400, 'Invalid request id')
 
   const adminClient = createAdminClient()
 
@@ -72,15 +75,16 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
   const deliveryAddress = str(input.deliveryAddress)
   if (orderType === 'delivery' && !deliveryAddress) return fail(400, 'Delivery address is required for delivery orders')
 
-  const validatedItems: Array<{ menu_item_id: string; quantity: number }> = []
+  const validatedItems: Array<{ menu_item_id: string; variant_id: string | null; quantity: number }> = []
   for (const item of cartItems) {
     if (!item || typeof item !== 'object') return fail(400, 'Invalid cart item')
     const record = item as Record<string, unknown>
     const menuItemId = typeof record.menu_item_id === 'string' ? record.menu_item_id : null
+    const variantId = typeof record.variant_id === 'string' ? record.variant_id : typeof record.variantId === 'string' ? record.variantId : null
     const quantity = typeof record.quantity === 'number' ? record.quantity : Number(record.quantity)
     if (!menuItemId) return fail(400, 'Each cart item requires a menu_item_id.')
     if (!Number.isInteger(quantity) || quantity <= 0 || quantity > MAX_QUANTITY_PER_ITEM) return fail(400, 'Invalid item quantity')
-    validatedItems.push({ menu_item_id: menuItemId, quantity })
+    validatedItems.push({ menu_item_id: menuItemId, variant_id: variantId, quantity })
   }
 
   const { data: liveMenuItems, error: menuError } = await adminClient
@@ -97,14 +101,29 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
     menuLookup.set(row.id, { item_name: row.item_name, price: Number(row.price), available: Boolean(row.available) })
   }
 
-  const orderedItems: Array<{ menu_item_id: string; item_name: string; quantity: number; unit_price: number }> = []
+  const orderedItems: Array<{ menu_item_id: string; variant_id: string | null; item_name: string; quantity: number; unit_price: number }> = []
   let itemsTotal = 0
   for (const item of validatedItems) {
     const menuItem = menuLookup.get(item.menu_item_id)
     if (!menuItem || menuItem.available !== true) return fail(400, 'One or more menu items are unavailable')
     if (!Number.isFinite(menuItem.price)) return fail(400, 'Invalid menu item price')
     itemsTotal += menuItem.price * item.quantity
-    orderedItems.push({ menu_item_id: item.menu_item_id, item_name: menuItem.item_name, quantity: item.quantity, unit_price: menuItem.price })
+    let itemName = menuItem.item_name
+    let unitPrice = menuItem.price
+    if (item.variant_id) {
+      const { data: variant, error: variantError } = await adminClient
+        .from('menu_item_variants')
+        .select('id, menu_item_id, name, price, is_active')
+        .eq('id', item.variant_id)
+        .eq('menu_item_id', item.menu_item_id)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (variantError || !variant) return fail(400, 'One or more selected variants are unavailable')
+      const variantPrice = Number(variant.price)
+      if (Number.isFinite(variantPrice) && variantPrice > 0) unitPrice = variantPrice
+      if (typeof variant.name === 'string' && variant.name.trim()) itemName = `${itemName} (${variant.name.trim()})`
+    }
+    orderedItems.push({ menu_item_id: item.menu_item_id, variant_id: item.variant_id, item_name: itemName, quantity: item.quantity, unit_price: unitPrice })
   }
 
   // Restaurant rules from Settings: hours / pause, order types, minimum order, delivery pincodes.
@@ -144,72 +163,45 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
     tableNumber = tableRow.table_number
   }
 
-  const { data: orderNumber, error: numberError } = await adminClient.rpc('next_order_number', { src: input.source })
-  if (numberError || typeof orderNumber !== 'string') {
-    console.error('[createCustomerOrder] next_order_number failed:', numberError?.message)
-    return fail(500, 'Unable to generate order number')
+  const { data: rpcResult, error: createError } = await adminClient.rpc('create_customer_order_atomic', {
+    p_customer_id: input.customerId || null,
+    p_order_type: orderType,
+    p_customer_name: resolvedName,
+    p_customer_phone: resolvedPhone,
+    p_delivery_address: orderType === 'delivery' ? deliveryAddress : null,
+    p_landmark: orderType === 'delivery' ? str(input.landmark) || null : null,
+    p_pincode: orderType === 'delivery' ? pincode || null : null,
+    p_scheduled_time: scheduledFor,
+    p_payment_method: str(input.paymentMethod) || 'cash',
+    p_idempotency_key: idempotencyKey || null,
+    p_cart_items: validatedItems,
+    p_table_number: tableNumber,
+    p_party_size: 1,
+    p_source: input.source,
+    p_channel_user_id: str(input.channelUserId) || null,
+  })
+  if (createError || !rpcResult || typeof rpcResult !== 'object') {
+    console.error('[createCustomerOrder] Atomic order RPC failed:', createError?.message || 'No order returned')
+    const message = createError?.message || 'Failed to create order'
+    const customerMessage = /Orders are paused|restaurant is closed|not available|Pincode not serviceable|Delivery address|required|Table unavailable|unavailable|minimum|Below minimum/i.test(message)
+    return fail(customerMessage ? 400 : 500, customerMessage ? message : 'Failed to create order', customerMessage ? 'ORDER_RULES' : undefined)
   }
 
-  const isDelivery = orderType === 'delivery'
-  const payload: Record<string, unknown> = {
-    order_number: orderNumber,
-    customer_phone: resolvedPhone,
-    customer_name: resolvedName,
-    items: orderedItems.map((item) => `${item.item_name} x ${item.quantity}`).join(', '),
-    total,
-    delivery_fee: deliveryFee,
-    status: 'new',
-    order_type: orderType,
-    source: input.source,
-    address: isDelivery ? deliveryAddress : null,
-    landmark: isDelivery ? str(input.landmark) || null : null,
-    city: null,
-    pincode: isDelivery ? pincode || null : null,
-    table_number: tableNumber,
-    items_json: orderedItems.map((item) => ({ ...item, round: 1 })),
-  }
-  if (scheduledFor) payload.scheduled_for = scheduledFor
-
-  const insert = (p: Record<string, unknown>) =>
-    adminClient.from('orders').insert(p).select('id, order_number, status, order_type').single()
-
-  let { data: created, error: insertError } = await insert(payload)
-  for (const column of OPTIONAL_COLUMNS) {
-    if (insertError && new RegExp(column).test(insertError.message || '') && column in payload) {
-      console.warn(`[createCustomerOrder] orders.${column} missing — run the latest supabase migration`)
-      delete payload[column]
-      ;({ data: created, error: insertError } = await insert(payload))
-    }
-  }
-  if (insertError || !created) {
-    console.error('[createCustomerOrder] Order insert failed:', insertError?.message || 'No order returned')
+  const result = rpcResult as { order?: Record<string, unknown>; duplicate?: boolean }
+  const created = result.order
+  if (!created || typeof created.id !== 'string' || typeof created.order_number !== 'string') {
     return fail(500, 'Failed to create order')
-  }
-
-  const { error: itemsError } = await adminClient.from('order_items').insert(
-    orderedItems.map((item) => ({ order_id: created.id, ...item, size: null, notes: null }))
-  )
-  if (itemsError) {
-    console.error('[createCustomerOrder] Order item insert failed:', itemsError.message)
-    const { error: cleanupError } = await adminClient.from('orders').delete().eq('id', created.id)
-    if (cleanupError) console.error('[createCustomerOrder] Orphaned order cleanup failed:', cleanupError.message)
-    return fail(500, 'Failed to create order items')
-  }
-
-  if (orderType === 'dine-in' && tableNumber) {
-    const { error: tableUpdateError } = await adminClient
-      .from('restaurant_tables').update({ is_active: true, current_order_id: created.id }).eq('table_number', tableNumber)
-    if (tableUpdateError) console.error('[createCustomerOrder] Table update failed:', tableUpdateError.message)
   }
 
   return {
     ok: true,
     orderId: created.id,
     orderNumber: created.order_number,
-    orderType: created.order_type,
-    status: created.status,
-    total,
-    deliveryFee,
-    scheduledFor: 'scheduled_for' in payload ? scheduledFor : null,
+    orderType: typeof created.order_type === 'string' ? created.order_type : orderType,
+    status: typeof created.status === 'string' ? created.status : 'new',
+    total: Number(created.total_amount ?? created.total ?? total),
+    deliveryFee: Number(created.delivery_fee ?? deliveryFee),
+    scheduledFor: typeof created.scheduled_for === 'string' ? created.scheduled_for : scheduledFor,
+    isDuplicate: result.duplicate === true,
   }
 }

@@ -5,8 +5,8 @@ Single source of truth for the Rasoi WhatsApp ordering pipeline. No secrets here
 ## Target flow
 
 YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud_event_inbox`
-(unique insert) → forwarder (not built) → n8n `Rasoi | WhatsApp Inbound — DEV`
-(Header Auth `x-rasoi-whatsapp-secret`) → Rasoi `/api/ai/tools/*` → YCloud reply.
+(unique insert) → enabled forwarder → n8n Rasoi Order Bridge (Header Auth `x-rasoi-whatsapp-secret`)
+→ Rasoi `/api/ai/tools/*` and Supabase → YCloud reply.
 
 ## Verified state (2026-10-29)
 
@@ -18,13 +18,18 @@ YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud
 | PostgreSQL concurrency | Verified: 20 parallel retries → 1 row; 10 event ids for one message → 1 row; status events allowed | `RUN_DB_TESTS=1 node --test test/*.mjs` |
 | Rasoi DB | Single environment (also used by Vercel); 22 menu items, 0 orders, 0 customers | read-only query |
 | `orders_paused` | `true` | `settings` table |
-| n8n workflow `M5ATeom22h3ub9E1` | Exists, inactive, Rasoi folder, matches local JSON | API read-back |
+| YCloud webhook endpoint | Active; subscribed to `whatsapp.inbound_message.received` only; signing secret matches `.env.local`. Keep status events excluded until the matching app deployment is live. | YCloud API read-back (2026-10-29) |
+| Owner live message check | Passed: inbound event processed, Order Bridge succeeded, and owner received the paused-orders reply. Two status events caused 400s and false empty inbound rows; the subscription was removed and those rows deleted while inbox audit records were retained. | Supabase inbox/message read-back and n8n execution records (2026-10-29) |
+| Code verification (2026-10-29) | Standard test suite: 11 passed, 1 opt-in DB test skipped; TypeScript check and production build passed. Targeted lint for the four core YCloud files passed. Whole-repo lint remains failing (212 errors, 98 warnings). | `node --test test/*.mjs`, `npx tsc --noEmit`, `npx next build`, targeted ESLint, `npm run lint` |
+| Rasoi menu cleanup | Renamed `Pabbas Veg Sandwich` to `Veg Sandwich`; removed Pabbas wording from two descriptions; no Pabbas matches remain in `menu_items` or `restaurant_info` | Guarded Supabase transaction and post-update query (2026-10-29) |
+| Superseded n8n workflows | `M5ATeom22h3ub9E1` and `JwgMPRAayOxGUZwu` archived and inactive | n8n API read-back (2026-10-29) |
 | n8n webhook auth | Header Auth, credential `Rasoi \| WhatsApp Inbound Header Auth` (`dPHtUE9wSc0WyIpm`) | API PUT response |
-| `RASOI_WHATSAPP_INBOUND_SECRET` | Set in `.env.local` (not yet in Vercel) | name check only |
-| Forwarder to n8n | Built, **off** by default (`RASOI_WHATSAPP_FORWARDING_ENABLED=true` + `N8N_WHATSAPP_INBOUND_WEBHOOK_URL` enable it). `lib/server/ycloud-forwarder.ts`, fast path via `after()` in the webhook, retries via `POST /api/internal/ycloud-inbox/drain` (header auth) | `test/ycloud-forwarder.test.mjs` |
+| `RASOI_WHATSAPP_INBOUND_SECRET` | Set in `.env.local` and Vercel | Owner confirmation |
+| Forwarder to n8n | Built and enabled in Vercel per owner confirmation; fast path via `after()` in the webhook, retries via `POST /api/internal/ycloud-inbox/drain` (header auth) | `test/ycloud-forwarder.test.mjs`; owner confirmed YCloud URL checked |
 | Claim/lease SQL | `supabase/migrations/20261029_ycloud_event_claims.sql` applied 2026-10-29 (by owner); lease, fencing, backoff 30s×2ⁿ up to 1h, failed after 8, anon denied; 6 parallel claimers never share a row | rolled-back SQL check + `RUN_DB_TESTS=1` (12/12 pass) |
-| n8n AI bridge v1 | `Rasoi \| WhatsApp AI Bridge — DEV` (`JwgMPRAayOxGUZwu`), **inactive**, export `n8n/rasoi_whatsapp_ai_bridge_dev.json`. Webhook (inbound Header Auth) → text-only extract → gpt-4o-mini agent with Menu, Business Info, Cart tools (`Rasoi \| AI Tools Header Auth`, `EnkoukP9izBJ267l`) → reply built but **not sent**. Cart phone is bound from the verified event, placed last so AI input cannot override it. No order/status/checkout tools yet. Owner confirmed folder placement | Live test 2026-10-29 (temporarily activated, synthetic phone, carts deleted): menu answer used real prices; add-to-cart priced server-side (2 × ₹105 = ₹210); prompt-injection refused with no tool call; wrong secret → 403 |
-| n8n drain scheduler | `Rasoi \| Inbox Drain — DEV` (`zQy094A473hNBkAw`), Rasoi folder, **inactive**, every minute → drain route with Header Auth; export `n8n/rasoi_inbox_drain_dev.json` | API create response |
+| Superseded AI bridge v1 | `Rasoi \| WhatsApp AI Bridge — DEV` (`JwgMPRAayOxGUZwu`), **archived and inactive**; kept as export/reference only | n8n API read-back (2026-10-29) |
+| Pabbas parity workflows (7) | Typing Indicator, Order Bridge, Status Notifier, Agent Reply Sender, Staff AI Toggle, Blast Sender, Rating Request — all active | n8n API read-back after owner authorization (2026-10-29) |
+| n8n drain scheduler | `Rasoi \| Inbox Drain — DEV` (`zQy094A473hNBkAw`), Rasoi folder, **active**, every minute → drain route with Header Auth; export `n8n/rasoi_inbox_drain_dev.json` | n8n API read-back (2026-10-29) |
 
 ## Conventions
 
@@ -37,7 +42,7 @@ YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud
 
 ## Pending approvals / blockers
 
-1. Add `RASOI_WHATSAPP_INBOUND_SECRET` to Vercel env (same value as `.env.local`) before deploying.
+1. Owner is ready to accept real orders. Keep ordering paused until the updated app is deployed, restaurant details and delivery riders are configured, and the YCloud status handler is verified; then run one controlled takeaway order and verify the Status Notifier.
 
 ## Pabbas parity build (owner request: same workflows, Rasoi name)
 
@@ -46,37 +51,46 @@ YCloud → `app/api/webhooks/ycloud/whatsapp/route.ts` (HMAC verify) → `ycloud
 Rating Request) into Rasoi versions: Rasoi URLs, Supabase host, WhatsApp number, header names and
 credentials; webhook paths become `rasoi-*`; Groq transcription removed (OpenAI path only); Blast
 webhook now requires `x-rasoi-whatsapp-secret` (dashboard sends it). It refuses to create any workflow
-that still references Pabbas. Dry run output: `n8n/rasoi_build/`. Created workflows are inactive.
+that still references Pabbas. Dry run output: `n8n/rasoi_build/`. The builder creates workflows inactive; the owner later authorized activation.
 
-Created 2026-10-29, all **inactive**, no Pabbas references (API read-back):
+Created 2026-10-29 with no Pabbas references; all **active** after the owner's request, with read-back confirming all 7:
 Typing Indicator `9MF4AL9PWNo55Tte`, Order Bridge `mR5qLGoAgFZmXajx`, Status Notifier `o5Z4RoWXKjiipzLV`,
 Agent Reply Sender `945xE8ixGgeGGZQZ`, Staff AI Toggle `v6nMJs3qq8q5Mywn`, Blast Sender `y4GS5pPJlFAHwgbY`,
 Rating Request `KmjniuLxGyj8p25P`. Credentials: `Rasoi Supabase (service key)` `DMaJVMEDKkVCsRcL`,
 `Rasoi YCloud API Key` `uh9mDw6j89RNpyQb`. `inbound_bundle` migration applied (by owner).
-Superseded, inactive: `Rasoi | WhatsApp Inbound — DEV`, `Rasoi | WhatsApp AI Bridge — DEV`.
-Still needed: `Rasoi | Inbox Drain — DEV` (retry scheduler).
+`Rasoi | Inbox Drain — DEV` (`zQy094A473hNBkAw`) is also active. Superseded workflows, now archived and inactive:
+`Rasoi | WhatsApp Inbound — DEV`, `Rasoi | WhatsApp AI Bridge — DEV`.
 
-Go-live checklist:
+Go-live configuration (owner confirmed set and YCloud webhook URL checked):
 - Vercel: `N8N_WHATSAPP_INBOUND_WEBHOOK_URL`, `N8N_STATUS_WEBHOOK_URL`, `N8N_ORDER_CREATED_WEBHOOK_URL`,
   `N8N_AGENT_REPLY_WEBHOOK_URL`, `N8N_AI_TOGGLE_WEBHOOK_URL`, `N8N_BLAST_WEBHOOK_URL` →
   `https://staff.brightmedia.tech/webhook/rasoi-{whatsapp-inbound,status,order-created,agent-reply,ai-toggle,blast}`.
-- The Order Bridge sends real WhatsApp replies once active (same as Pabbas).
+- The Order Bridge is active and can send WhatsApp replies when an inbound event reaches it.
 
 ## Known issues
 
-- Rasoi menu data still contains Pabbas wording (e.g. "Pabbas Veg Sandwich") from the data import.
 - Cart tool's server-written reply says "shall we place the order?" although WhatsApp checkout is not
   enabled yet.
 - The toolHttpRequest node (v1.1) drops calls whose placeholder is a JSON array; use scalar placeholders.
+- YCloud `whatsapp.message.updated` is still unsubscribed. The local Next.js handler now persists these events separately; enable the subscription only after that code is deployed.
+
+## Current go-live gate (2026-10-29)
+
+The owner confirmed readiness to accept real orders and supplied delivery pincodes `575028`, `575001`, and `575002`. Those pincodes are active in production. The production database migration `20261029_ycloud_status_and_atomic_orders.sql` is applied, including the atomic idempotent order RPC and outbound message status table. Live n8n workflows have corrected YCloud/Supabase credentials and the Order Bridge now supplies a stable idempotency key.
+
+The corresponding Next.js source changes are **not deployed**. This workspace has no Vercel CLI login or linked project, GitHub connector access is read-only, and the local remote check did not complete. Production `orders_paused` remains `true`; do not unpause or subscribe YCloud `whatsapp.message.updated` until the matching app code is deployed and verified.
+
+Before full delivery go-live, configure the missing public restaurant address, phone, and city, and activate at least one delivery rider. The YCloud account also has no approved WhatsApp template, so Blast Sender cannot send campaigns until an approved template is available. Keep those features disabled/unverified in the meantime.
+
+After deployment, verify the production build and webhook path, enable YCloud message status events, inspect the inbox drain and n8n executions, then unpause and run the owner-authorized controlled takeaway order. Confirm the customer reply and Status Notifier before treating the system as live.
+
+Verification of the current local code: `npx tsc --noEmit`, targeted ESLint, and `npx next build` pass. `node --test test/*.mjs` passes 14 tests; the opt-in DB test is skipped unless `RUN_DB_TESTS=1` is set. The opt-in integration suite passed separately against the production database with self-cleaning test rows. Whole-repo lint still has pre-existing failures.
 
 ## Next milestones
 
-1. When the AI bridge is ready: activate the drain scheduler and set
-   `N8N_WHATSAPP_INBOUND_WEBHOOK_URL` + `RASOI_WHATSAPP_FORWARDING_ENABLED=true` in Vercel.
-2. Delivery to n8n is at-least-once. Every side effect n8n triggers must carry the event id as an
-   idempotency key enforced by Rasoi (e.g. `create_customer_order(p_idempotency_key)`), plus an
-   outbound-message dedupe table before replies are sent.
+1. Inbound configuration, workflow activation, and the paused-reply test are complete. Real-order activation waits on app deployment and delivery operations setup, despite the owner's readiness.
+2. Delivery to n8n is at-least-once. Inbound message uniqueness and atomic order idempotency are now enforced by the applied database migration and Order Bridge key. Outbound-message deduplication remains future work.
 3. Rasoi inbound AI bridge. AI: owner chose to reuse the existing n8n credential
    `OpenAI account` (`qoyVBVk1ojHK9xi0`, also used by Pabbas) — usage and billing are shared; do not
    edit that credential. Tool routes `/api/ai/tools/*` require `x-rasoi-ai-secret` =
-   `RASOI_AI_WEBHOOK_SECRET`, which is unset (all tools return 401 until it is configured). using `/api/ai/tools/*`, gated by `orders_paused`.
+   `RASOI_AI_WEBHOOK_SECRET`, set in Vercel per the handover. Live requests remain to be verified. Tools are gated by `orders_paused`.

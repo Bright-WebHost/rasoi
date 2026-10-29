@@ -6,10 +6,10 @@ import { timingSafeEqual } from 'crypto'
  * never hard-code it and never log it.
  */
 export function internalSecret(): string {
-  return (process.env.PABBAS_WHATSAPP_INBOUND_SECRET || process.env.PABBAS_AI_WEBHOOK_SECRET || process.env.PABBAS_N8N_WEBHOOK_SECRET || '').trim()
+  return (process.env.RASOI_WHATSAPP_INBOUND_SECRET || process.env.RASOI_AI_WEBHOOK_SECRET || process.env.RASOI_N8N_WEBHOOK_SECRET || '').trim()
 }
 
-export const INTERNAL_SECRET_HEADER = 'x-pabbas-whatsapp-secret'
+export const INTERNAL_SECRET_HEADER = 'x-rasoi-whatsapp-secret'
 
 /** True only if the secret is configured and the request carries it. Fails closed. */
 export function isInternalRequest(request: Request): boolean {

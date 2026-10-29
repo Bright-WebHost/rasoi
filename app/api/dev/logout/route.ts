@@ -1,10 +1,10 @@
 /**
  * POST /api/dev/logout
  *
- * Clears the pabbas_dev_access HTTP-only cookie, revoking simulator access
+ * Clears the rasoi_dev_access HTTP-only cookie, revoking simulator access
  * on Vercel. After calling this, /dev/whatsapp will redirect to /dev/login.
  *
- * This does NOT affect the customer ordering session (pabbas_session).
+ * This does NOT affect the customer ordering session (rasoi_session).
  *
  * Response:
  *   200  { ok: true }

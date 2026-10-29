@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import type { SupabaseMenuRow } from '@/lib/supabase/types'
 
 interface TestResult {
   label: string
@@ -45,11 +44,15 @@ export default async function SupabaseTestPage() {
     return <TestUI results={results} />
   }
 
-  // ── Check 3: Read from the existing `menu` table ────────────────────
+  // ── Check 3: Read from Rasoi's production `menu_items` table ────────
   try {
-    const { data, error, count } = await supabase
-      .from('menu')
-      .select('*', { count: 'exact' })
+    // The shared Database type still describes the source project's legacy
+    // schema; this check targets the reviewed Rasoi baseline directly.
+    const { data, error, count } = await (supabase as any)
+      .from('menu_items')
+      .select('item_number,item_name,category,price,available', { count: 'exact' })
+      .eq('available', true)
+      .order('item_number', { ascending: true })
       .limit(3)
 
     if (error) {
@@ -59,8 +62,8 @@ export default async function SupabaseTestPage() {
         detail: `PostgREST error (${error.code}): ${error.message}`,
       })
     } else {
-      const rows = (data ?? []) as SupabaseMenuRow[]
-      const names = rows.map((r) => r.name).join(', ')
+      const rows = (data ?? []) as Array<{ item_name: string }>
+      const names = rows.map((r) => r.item_name).join(', ')
       results.push({
         label: 'Menu Table Read',
         passed: true,
@@ -91,7 +94,7 @@ function TestUI({ results }: { results: TestResult[] }) {
           Supabase Connection Test
         </h1>
         <p className="text-sm text-gray-500 mb-6">
-          Verifying the connection between Next.js and the existing Pabbas
+          Verifying the connection between Next.js and the Rasoi
           Supabase project.
         </p>
 

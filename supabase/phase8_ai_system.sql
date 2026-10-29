@@ -1,5 +1,5 @@
 -- ============================================================
--- PABBAS - AI Assistant Backend System
+-- Rasoi - AI Assistant Backend System
 -- Phase 8: Carts & Business Information
 -- ============================================================
 
@@ -34,13 +34,4 @@ ALTER TABLE public.ai_carts ENABLE ROW LEVEL SECURITY;
 -- Carts can only be modified by the admin/service role (via our API endpoints)
 -- No public policies needed because our API uses the service_role key.
 
--- 3. Seed some default Pabbas info
-INSERT INTO public.restaurant_info (info_key, info_value) VALUES
-('address', '[PENDING BUSINESS CONFIRMATION]'),
-('opening_hours', '[PENDING BUSINESS CONFIRMATION]'),
-('delivery_areas', '[PENDING BUSINESS CONFIRMATION]'),
-('delivery_time', '[PENDING BUSINESS CONFIRMATION]'),
-('delivery_charges', 'There is a flat delivery fee of Rs 35 for all delivery orders.'),
-('payment_methods', 'We accept UPI, cash, and online payments.'),
-('cancellation_rules', 'Orders cannot be modified or cancelled once they enter the "preparing" state.')
-ON CONFLICT (info_key) DO UPDATE SET info_value = EXCLUDED.info_value;
+-- Populate restaurant_info only with confirmed Rasoi facts before enabling AI.

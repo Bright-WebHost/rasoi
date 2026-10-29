@@ -8,7 +8,7 @@ import { useOrderManager } from "@/app/(dashboard)/dashboard/OrderManagerProvide
 import { useStaff } from "@/components/providers/StaffProvider";
 import { canAccessPage, type PageRoute } from "@/lib/auth/permissions";
 
-export default function Sidebar({ restaurantName = "Pabbas", logoUrl = "" }: { restaurantName?: string; logoUrl?: string }) {
+export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { restaurantName?: string; logoUrl?: string }) {
   // Remember which logo URL failed to load, so a newly uploaded logo gets a fresh try.
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const pathname = usePathname();

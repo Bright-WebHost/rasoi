@@ -2,10 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 
 // ── Dev-access cookie constants (must match lib/dev/access.ts) ────────────────
-const DEV_ACCESS_COOKIE = 'pabbas_dev_access'
+const DEV_ACCESS_COOKIE = 'rasoi_dev_access'
 
 /**
- * Verifies the pabbas_dev_access cookie value.
+ * Verifies the rasoi_dev_access cookie value.
  *
  * The cookie is of the form `<nonce>.<hmac-sha256>` where the HMAC is keyed
  * with DEV_ACCESS_KEY. This is safe to run in Edge Middleware because we only
@@ -51,7 +51,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next({ request })
     }
 
-    // PRODUCTION: all other /dev/* paths require a valid pabbas_dev_access cookie.
+    // PRODUCTION: all other /dev/* paths require a valid rasoi_dev_access cookie.
     const raw = request.cookies.get(DEV_ACCESS_COOKIE)?.value
     if (!raw || !verifyDevCookieInMiddleware(raw)) {
       const loginUrl = request.nextUrl.clone()

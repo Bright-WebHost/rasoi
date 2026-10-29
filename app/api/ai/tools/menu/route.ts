@@ -1,8 +1,8 @@
 /**
  * GET /api/ai/tools/menu
  *
- * Secure server-side tool endpoint for the Pabbas AI Agent.
- * Returns the full active Pabbas menu with categories and variants.
+ * Secure server-side tool endpoint for the Rasoi AI Agent.
+ * Returns the full active Rasoi menu with categories and variants.
  *
  * This endpoint is called by n8n (not by the browser).
  * It uses the Supabase admin client server-side.
@@ -13,8 +13,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: Request) {
   try {
-    const aiSecret = request.headers.get('x-pabbas-ai-secret')?.trim()
-    const expectedSecret = process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()
+    const aiSecret = request.headers.get('x-rasoi-ai-secret')?.trim()
+    const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
     
     if (!expectedSecret || aiSecret !== expectedSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

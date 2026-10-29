@@ -1,7 +1,7 @@
 /**
  * POST /api/dev/access
  *
- * Issues a pabbas_dev_access HTTP-only cookie after verifying the submitted
+ * Issues a rasoi_dev_access HTTP-only cookie after verifying the submitted
  * DEV_ACCESS_KEY secret. This is the only way to unlock /dev/* routes on Vercel.
  *
  * Security:
@@ -9,7 +9,7 @@
  * - The secret is never echoed, logged, or returned to the client.
  * - The cookie value is a signed nonce, not the raw key.
  * - This cookie does NOT grant customer identity — that is handled separately
- *   by the pabbas_session cookie set by /auth/whatsapp.
+ *   by the rasoi_session cookie set by /auth/whatsapp.
  *
  * Request body:
  *   { secret: string }

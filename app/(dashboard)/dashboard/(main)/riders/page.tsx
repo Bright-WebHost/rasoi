@@ -2,7 +2,7 @@ import { requirePage } from "@/lib/auth/staff";
 import RidersContainer from "./RidersContainer";
 
 export const metadata = {
-  title: "Riders | Pabbas",
+  title: "Riders | Rasoi",
 };
 
 export default async function RidersPage() {

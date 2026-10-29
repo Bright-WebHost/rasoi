@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { checkOrderRules } from '@/lib/settings'
 import { getActivePincodes, getSettings } from '@/lib/settings/server'
 
-type ActiveMenuItem = { id: string; is_active: boolean }
+type ActiveMenuItem = { id: string; available: boolean }
 type ActiveMenuVariant = { id: string; menu_item_id: string; is_active: boolean }
 
 const VALID_ORDER_TYPES = new Set(['delivery', 'pickup', 'dine-in'])
@@ -59,8 +59,8 @@ function sanitizeCartItems(input: unknown): Array<{ menu_item_id: string; varian
 }
 
 export async function POST(request: Request) {
-  const secretHeader = request.headers.get('x-pabbas-ai-secret')?.trim()
-  const expectedSecret = process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()
+  const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
+  const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
   if (!expectedSecret || secretHeader !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -133,9 +133,9 @@ export async function POST(request: Request) {
 
   const { data: activeMenuItems, error: activeMenuItemsError } = (await adminClient
     .from('menu_items')
-    .select('id, is_active')
+    .select('id, available')
     .in('id', menuItemIds)
-    .eq('is_active', true)) as { data: ActiveMenuItem[] | null; error: { message?: string } | null }
+    .eq('available', true)) as { data: ActiveMenuItem[] | null; error: { message?: string } | null }
 
   if (activeMenuItemsError) {
     return NextResponse.json({ error: 'Menu validation failed.' }, { status: 500 })
@@ -199,6 +199,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     order: data,
-    created_by: 'pabbas_ai_bridge',
+    created_by: 'rasoi_ai_bridge',
   })
 }

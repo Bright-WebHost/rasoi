@@ -9,7 +9,7 @@ const DEV_CUSTOMERS = [
 ]
 
 interface ChatMessage {
-  from: 'customer' | 'pabbas'
+  from: 'customer' | 'rasoi'
   text: string
   showCTA?: boolean
   timestamp: string
@@ -131,7 +131,7 @@ export default function DevWhatsAppPage() {
       }
 
       const aiMsg: ChatMessage = {
-        from: 'pabbas',
+        from: 'rasoi',
         text: data.reply || 'Sorry, I did not understand that.',
         showCTA: true, // Persistent CTA after EVERY AI response
         timestamp: getTime(),
@@ -149,7 +149,7 @@ export default function DevWhatsAppPage() {
     if (!menuUrl) return
     const newWindow = window.open('', '_blank')
     if (newWindow) {
-      newWindow.document.write('Loading Pabbas Menu...')
+      newWindow.document.write('Loading Rasoi Menu...')
       const absoluteUrl = new URL(menuUrl, window.location.origin).toString()
       newWindow.location.href = absoluteUrl
     } else {
@@ -170,7 +170,7 @@ export default function DevWhatsAppPage() {
           const data = await res.json();
           if (data.messages && data.messages.length > 0) {
             const newMessages = data.messages.map((m: any) => ({
-              from: 'pabbas',
+              from: 'rasoi',
               text: m.message,
               timestamp: new Date(m.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
               showCTA: true
@@ -208,7 +208,7 @@ export default function DevWhatsAppPage() {
               P
             </div>
             <div className="flex-1">
-              <h2 className="text-white font-semibold text-[15px] leading-tight">Pabbas Mangalore</h2>
+              <h2 className="text-white font-semibold text-[15px] leading-tight">Rasoi</h2>
               <p className="text-[#8696a0] text-xs">AI Assistant</p>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function DevWhatsAppPage() {
           <div className="flex-1 px-3 py-4 overflow-y-auto flex flex-col gap-2" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.02\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
             {messages.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-[#8696a0] text-sm text-center px-6 py-12">
-                <p>Type a message to chat with the Pabbas AI Assistant.</p>
+                <p>Type a message to chat with the Rasoi AI Assistant.</p>
               </div>
             )}
             

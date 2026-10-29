@@ -1,7 +1,7 @@
-# Reusing Pabbas for a Different Restaurant
+# Rasoi Project Setup
 
-This guide explains how to launch a second restaurant on the Pabbas ordering
-platform without rebuilding the ordering system from scratch.
+This guide records the Rasoi copy's setup requirements and the checks needed
+before using the platform for another restaurant.
 
 ## Recommended approach
 
@@ -63,61 +63,97 @@ the equivalent variables in the new hosting project's environment settings.
 Common variables used by this project include:
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://orders.example-restaurant.com
-NEXT_PUBLIC_SUPABASE_URL=<new Supabase project URL>
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<new Supabase anon/publishable key>
-SUPABASE_SECRET_KEY=<new Supabase secret/service-role key>
-SESSION_SECRET=<new long random secret>
-PABBAS_N8N_WEBHOOK_SECRET=<new random restaurant-specific secret>
-N8N_ORDER_CREATED_WEBHOOK_URL=<new order-created workflow URL>
-N8N_STATUS_WEBHOOK_URL=<new order-status workflow URL>
+NEXT_PUBLIC_SITE_URL=<Rasoi app URL>
+NEXT_PUBLIC_SUPABASE_URL=https://xwakalryzigtvoirwooq.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<new Rasoi anon/publishable key>
+SUPABASE_SECRET_KEY=<new Rasoi secret/service-role key>
+SESSION_SECRET=<new random secret, separate from Supabase keys>
+DEV_ACCESS_KEY=<new random developer-access secret>
+RASOI_AI_WEBHOOK_SECRET=<new Rasoi AI integration secret>
+RASOI_WHATSAPP_INBOUND_SECRET=<new Rasoi WhatsApp integration secret>
+RASOI_N8N_WEBHOOK_SECRET=<new Rasoi n8n integration secret>
+YCLOUD_API_KEY=<new Rasoi YCloud API key>
+YCLOUD_PHONE_NUMBER=<Rasoi WhatsApp sender number>
+YCLOUD_WEBHOOK_SECRET=<new Rasoi YCloud webhook secret>
+NEXT_PUBLIC_WHATSAPP_NUMBER=<Rasoi WhatsApp number, country code included>
+N8N_ORDER_CREATED_WEBHOOK_URL=<Rasoi order-created workflow URL>
+N8N_STATUS_WEBHOOK_URL=<Rasoi order-status workflow URL>
+N8N_AI_WEBHOOK_URL=<Rasoi AI workflow URL>
+N8N_AGENT_REPLY_WEBHOOK_URL=<Rasoi agent-reply workflow URL>
+N8N_AI_TOGGLE_WEBHOOK_URL=<Rasoi AI-toggle workflow URL>
+N8N_BLAST_WEBHOOK_URL=<Rasoi campaign workflow URL>
+N8N_WHATSAPP_INBOUND_WEBHOOK_URL=<Rasoi inbound WhatsApp workflow URL>
+NEXT_PUBLIC_BLAST_BUTTON_URL_PARAM=<approved Rasoi campaign URL button parameter>
 ```
 
-Depending on enabled features, also configure variables such as
-`N8N_AI_WEBHOOK_URL`, `N8N_WHATSAPP_INBOUND_WEBHOOK_URL`,
-`N8N_AGENT_REPLY_WEBHOOK_URL`, `N8N_AI_TOGGLE_WEBHOOK_URL`,
-`N8N_BLAST_WEBHOOK_URL`, `PABBAS_AI_WEBHOOK_SECRET`,
-`PABBAS_WHATSAPP_INBOUND_SECRET`, `YCLOUD_API_KEY`, and
-`YCLOUD_WEBHOOK_SECRET`. `NEXT_PUBLIC_WHATSAPP_NUMBER` is used by the dashboard
-for WhatsApp links. Use the exact names referenced by the feature's code and
-workflow; this list is not a substitute for checking each integration.
+The tracked [`.env.example`](../.env.example) lists these names without
+credentials. The copied `.env.local` is ignored by Git and is configured with
+the Rasoi Supabase URL; its project keys and copied Pabbas integration values
+have been cleared so they cannot be reused accidentally.
+`RASOI_N8N_API_KEY` is not required by the app; enter a new n8n API key only if
+the local workflow-management helper is reviewed and intentionally used. The
+selected `apply_code.py` helper no longer has a source-instance URL or workflow
+ID; it requires `RASOI_N8N_BASE_URL`, `RASOI_N8N_WORKFLOW_ID`, and
+`RASOI_N8N_API_KEY`,
+and no longer copies a YCloud API key from webhook payload data. Other local
+workflow helper scripts still need review before use. Keep the legacy
+`N8N_API_KEY` unset until those tools have been retargeted and reviewed.
 
 Keep secret/service-role keys only in server-side environments and n8n
 credentials. Do not commit `.env.local`, paste secrets into workflow JSON, or
 reuse Pabbas production secrets. Use HTTPS for deployed URLs.
 
-Before deploying, inspect the integration code for restaurant-specific fallback
-values. For example, some webhook calls currently fall back to the Pabbas
-`staff.brightmedia.tech` URLs, and the rider WhatsApp sender has a fixed phone
-number. Set the new restaurant's URLs/numbers explicitly or change those
-fallbacks; do not let the new deployment silently send traffic to Pabbas.
+Rasoi webhook calls no longer have Pabbas fallback URLs, and WhatsApp senders
+now use `YCLOUD_PHONE_NUMBER`. Calls that lack a Rasoi endpoint or credential
+stay disabled or return a configuration error. Configure each endpoint and
+update the selected n8n workflow to accept the matching `x-rasoi-*` header
+before enabling the integration. No workflow was imported or changed remotely.
+The old workflow exports and remaining local helper scripts still require a
+separate review and new n8n credentials.
 
 ### 4. Set up the new database
 
-1. Review the SQL files in [`../supabase/`](../supabase/).
-2. Apply the schema/migration files to the new Supabase project in dependency
-   order, following the project documentation and each file's notes.
-3. Do not run rollback files as setup migrations, and do not blindly execute
-   every SQL file without checking whether it is optional or environment
-   specific.
-4. Configure and verify Row Level Security, grants, RPCs, and storage policies.
-5. Seed the restaurant's menu and operational records only after the schema is
-   ready.
+Use the single-file fresh-project script
+[`../supabase/rasoi_initialization.sql`](../supabase/rasoi_initialization.sql).
+It consolidates the Rasoi core baseline with app customer sessions, saved
+addresses, table/rider operations, AI cart and menu-variant objects, staff
+roles, ordering RPCs, operational settings, RLS/grants, and the `menu_images`
+storage bucket. It intentionally seeds no customers, staff, menu items, delivery
+pincodes, or tables. Orders start paused until confirmed business settings are
+entered. The script has not been applied or executed against remote Postgres.
 
-Use the database shape and ordering flow described in
-[`pabbas/07-supabase-database.md`](./pabbas/07-supabase-database.md) and
-[`pabbas/08-menu-system.md`](./pabbas/08-menu-system.md). Test database
-functions against the new project before allowing real orders.
+You reported successful read-only SQL Editor queries with no public columns,
+functions, or policies. A direct Postgres connection from this environment
+failed certificate validation, so no remote migration was attempted. Review the
+whole script, then run that one file in the Rasoi project's Supabase SQL Editor.
+
+Do not run the legacy migrations alongside it. `phase4_menu.sql`,
+`phase5_orders.sql`, `orders_rpc_hardening.sql`, and the order-event scripts use
+an incompatible older schema generation; `phase6_tables.sql` seeds example
+tables; `pabbas_menu_seed.sql` contains Pabbas inventory. Keep those files as
+historical source material. The n8n exports also need separate contract review
+and new Rasoi credentials before activation.
+
+`lib/supabase/types.ts` still models an older price-in-paise contract and is
+shared with n8n. Review/update it only after the new Rasoi schema and workflow
+contract are confirmed. Populate verified Rasoi dietary flags and menu variants
+before enabling those customer ordering features.
+
+The historical [`pabbas/07-supabase-database.md`](./pabbas/07-supabase-database.md)
+and [`pabbas/08-menu-system.md`](./pabbas/08-menu-system.md) describe the source
+project's behavior; use them as reference only and verify every object against
+the Rasoi baseline. Test database functions against the new project before
+allowing real orders.
 
 ### 5. Replace the restaurant's settings and catalog
 
-Set the new restaurant's name, tagline, address, phone, city, logo, tax
+Set Rasoi's name, tagline, address, phone, city, logo, tax
 information, hours, order types, minimum order, delivery fee, free-delivery
 threshold, payment instructions, and delivery note. Settings can be managed
 from the dashboard after the database and an admin login are ready; defaults
 are defined in [`../lib/settings/index.ts`](../lib/settings/index.ts).
 
-Add the actual menu to the new database's production `menu_items` data source,
+Add Rasoi's actual menu to the new database's production `menu_items` data source,
 including correct prices, availability, categories, dietary flags, variants,
 and image URLs. The customer menu API reads production menu data from Supabase;
 changing [`../lib/menu-data.ts`](../lib/menu-data.ts) alone does not replace the

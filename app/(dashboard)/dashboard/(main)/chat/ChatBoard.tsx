@@ -73,7 +73,7 @@ export default function ChatBoard() {
   useEffect(() => {
     fetchSessions();
 
-    const channel = supabase.current.channel("pabbas-chat-live");
+    const channel = supabase.current.channel("rasoi-chat-live");
     channel.on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, () => {
       fetchSessions();
     });
@@ -295,7 +295,7 @@ export default function ChatBoard() {
                     disabled={!inputText.trim() || isSending}
                     className="bg-[#0A1017] hover:bg-[#111923] text-white font-bold text-sm px-6 py-2.5 rounded-xl transition shadow-[0_4px_12px_rgba(10,16,23,0.15)] disabled:opacity-50 hover:-translate-y-0.5"
                   >
-                    {isSending ? "Sending..." : "Reply as Pabbas Staff"}
+                    {isSending ? "Sending..." : "Reply as Rasoi Staff"}
                   </button>
                 </div>
               </form>

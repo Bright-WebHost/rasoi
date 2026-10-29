@@ -2,7 +2,7 @@ import { requirePage } from "@/lib/auth/staff";
 import PosBoard from "./PosBoard";
 
 export const metadata = {
-  title: "POS | Pabbas",
+  title: "POS | Rasoi",
 };
 
 export default async function PosPage() {

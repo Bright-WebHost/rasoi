@@ -8,8 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const HANDOVER_BY = 'customer_request'
 
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-pabbas-ai-secret')?.trim()
-  if (!secret || secret !== process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()) {
+  const secret = request.headers.get('x-rasoi-ai-secret')?.trim()
+  if (!secret || secret !== process.env.RASOI_AI_WEBHOOK_SECRET?.trim()) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

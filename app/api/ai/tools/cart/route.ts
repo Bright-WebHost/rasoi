@@ -8,7 +8,7 @@ function formatCartResponse(items: any[]) {
   
   const total = items.reduce((sum: number, item: any) => sum + ((item.unit_price || item.price || 0) * item.quantity), 0)
   
-  let formattedMessage = "We've updated your Pabbas Delivery order.\n\n*Your order:*\n";
+  let formattedMessage = "We've updated your Rasoi Delivery order.\n\n*Your order:*\n";
   items.forEach(item => {
     formattedMessage += `• ${item.item_name} - ${item.quantity}\n`;
   });
@@ -24,8 +24,8 @@ function formatCartResponse(items: any[]) {
 }
 
 export async function POST(request: Request) {
-  const secretHeader = request.headers.get('x-pabbas-ai-secret')?.trim()
-  const expectedSecret = process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()
+  const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
+  const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
   if (!expectedSecret || secretHeader !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

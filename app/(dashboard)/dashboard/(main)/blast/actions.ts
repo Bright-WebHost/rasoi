@@ -44,7 +44,9 @@ export async function uploadYCloudMedia(formData: FormData) {
     const apiKey = process.env.YCLOUD_API_KEY;
     if (!apiKey) return { success: false, error: "YCLOUD_API_KEY not configured" };
 
-    const res = await fetch("https://api.ycloud.com/v2/whatsapp/media/%2B919180348124/upload", {
+    const phoneNumber = process.env.YCLOUD_PHONE_NUMBER?.replace(/\D/g, "");
+    if (!phoneNumber) return { success: false, error: "YCLOUD_PHONE_NUMBER not configured" };
+    const res = await fetch(`https://api.ycloud.com/v2/whatsapp/media/${encodeURIComponent(`+${phoneNumber}`)}/upload`, {
       method: "POST",
       headers: { "X-API-Key": apiKey },
       body: formData
@@ -102,7 +104,8 @@ export async function sendBlast(filter: string, templateName: string, components
       return { success: false, error: "Template not found or not approved" };
     }
 
-    const webhookUrl = process.env.N8N_BLAST_WEBHOOK_URL || "https://staff.brightmedia.tech/webhook/pabbas-blast";
+    const webhookUrl = process.env.N8N_BLAST_WEBHOOK_URL?.trim();
+    if (!webhookUrl) return { success: false, error: "N8N_BLAST_WEBHOOK_URL not configured" };
 
     const payload = {
       filter,

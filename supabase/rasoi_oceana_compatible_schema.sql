@@ -1,14 +1,14 @@
--- PABBAS — Oceana-compatible database foundation
+-- RASOI — Oceana-compatible database foundation
 --
--- TARGET: NEW, SEPARATE Pabbas Supabase project only.
+-- TARGET: The separate Rasoi Supabase project only.
 -- STATUS: DESIGN MIGRATION. NOT APPLIED.
 --
 -- This migration reproduces the verified Oceana-shaped structure and behavior
 -- without copying Oceana data, Auth users, secrets, provider IDs, or credentials.
 -- It intentionally does not preserve the older UUID/price_paise Pabbas schema.
 --
--- Pabbas-specific decisions:
---   * order numbers use PBN- as the prefix (not Oceana's OCN-).
+-- Rasoi-specific decisions:
+--   * order numbers use RSO- as the prefix (not Oceana's OCN-).
 --   * prices use numeric rupees, matching the verified Oceana contract.
 --   * customer identity is normalized phone, not app_customers UUID.
 --   * no production or demo seed data is included.
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
   category text NOT NULL,
   price numeric NOT NULL DEFAULT 0,
   available boolean NOT NULL DEFAULT true,
+  vegetarian boolean,
   description text DEFAULT '',
   image_url text DEFAULT '',
   variants jsonb,
@@ -283,9 +284,9 @@ RETURNS text LANGUAGE plpgsql AS $$
 DECLARE prefix text;
 BEGIN
   prefix := CASE lower(COALESCE(src, 'whatsapp'))
-    WHEN 'pwa' THEN 'PBN-P-'
-    WHEN 'staff' THEN 'PBN-S-'
-    ELSE 'PBN-W-'
+    WHEN 'pwa' THEN 'RSO-P-'
+    WHEN 'staff' THEN 'RSO-S-'
+    ELSE 'RSO-W-'
   END;
   RETURN prefix || nextval('public.order_number_seq')::text;
 END; $$;
@@ -328,12 +329,31 @@ END; $$;
 
 CREATE OR REPLACE FUNCTION public.is_open(p_at timestamptz DEFAULT now())
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SET search_path TO 'public'
 AS $$
-  select (p_at at time zone 'Asia/Kolkata')::time >= coalesce((select value from settings where key = 'open_time'), '07:00')::time
-     and (p_at at time zone 'Asia/Kolkata')::time < coalesce((select value from settings where key = 'close_time'), '23:30')::time
+DECLARE
+  v_open text;
+  v_close text;
+  v_now time;
+BEGIN
+  IF (SELECT value FROM settings WHERE key = 'orders_paused') = 'true' THEN
+    RETURN false;
+  END IF;
+
+  SELECT NULLIF(value, '') INTO v_open FROM settings WHERE key = 'open_time';
+  SELECT NULLIF(value, '') INTO v_close FROM settings WHERE key = 'close_time';
+  IF v_open IS NULL OR v_close IS NULL THEN
+    RETURN true;
+  END IF;
+
+  v_now := (p_at AT TIME ZONE 'Asia/Kolkata')::time;
+  IF v_open::time <= v_close::time THEN
+    RETURN v_now >= v_open::time AND v_now < v_close::time;
+  END IF;
+  RETURN v_now >= v_open::time OR v_now < v_close::time;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.is_staff()
@@ -388,8 +408,8 @@ CREATE OR REPLACE FUNCTION public.order_context()
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select jsonb_build_object('is_open', public.is_open(), 'hours', coalesce((select value from settings where key = 'hours'), '7:00 AM to 11:30 PM'),
-    'min_order', coalesce((select value from settings where key = 'min_order'), '200'), 'city', coalesce((select value from settings where key = 'city'), 'Mangalore'),
+  select jsonb_build_object('is_open', public.is_open(), 'hours', coalesce((select value from settings where key = 'hours'), ''),
+    'min_order', coalesce((select value from settings where key = 'min_order'), '0'), 'city', coalesce((select value from settings where key = 'city'), ''),
     'pincodes', coalesce((select jsonb_agg(pincode) from delivery_pincodes where active), '[]'::jsonb),
     'menu', coalesce((select jsonb_agg(jsonb_build_object('n', item_number, 'name', item_name, 'price', price, 'available', available)) from menu_items), '[]'::jsonb))
 $function$;

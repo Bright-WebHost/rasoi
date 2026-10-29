@@ -137,12 +137,12 @@ export async function POST(request: Request) {
   // 3. Get n8n configuration
   // --------------------------------------------------
 
-  const webhookUrl = process.env.N8N_AI_WEBHOOK_URL
-  const webhookSecret = process.env.PABBAS_AI_WEBHOOK_SECRET
+  const webhookUrl = process.env.N8N_AI_WEBHOOK_URL?.trim()
+  const webhookSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
   if (!webhookUrl || !webhookSecret) {
     console.error(
-      'Missing N8N_AI_WEBHOOK_URL or PABBAS_AI_WEBHOOK_SECRET'
+      'Missing N8N_AI_WEBHOOK_URL or RASOI_AI_WEBHOOK_SECRET'
     )
 
     return NextResponse.json(
@@ -163,9 +163,9 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
 
         // IMPORTANT:
-        // The Pabbas AI n8n webhook expects the AI-specific
+        // The Rasoi AI n8n webhook expects the AI-specific
         // authentication header.
-        'x-pabbas-ai-secret': webhookSecret,
+        'x-rasoi-ai-secret': webhookSecret,
       },
 
       body: JSON.stringify({
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Sorry, I'm having trouble connecting right now. You can still use the Pabbas ordering page to place your order.",
+            "Sorry, I'm having trouble connecting right now. You can still use the Rasoi ordering page to place your order.",
         },
         { status: 502 }
       )
@@ -227,7 +227,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Sorry, I'm having trouble connecting right now. You can still use the Pabbas ordering page to place your order.",
+          "Sorry, I'm having trouble connecting right now. You can still use the Rasoi ordering page to place your order.",
       },
       { status: 502 }
     )

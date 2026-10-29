@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pabbas Mangalore | Order Something Sweet",
-  description: "Order Pabbas favourites, freshly served in Mangalore.",
+  title: "Rasoi | Order Online",
+  description: "Browse Rasoi's menu and place an order online.",
 };
 
 export default function RootLayout({

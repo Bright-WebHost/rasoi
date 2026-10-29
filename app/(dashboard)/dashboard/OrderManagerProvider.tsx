@@ -44,7 +44,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("pabbas_sound_enabled") !== "false";
+      return localStorage.getItem("rasoi_sound_enabled") !== "false";
     }
     return true;
   });
@@ -100,7 +100,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
     setSoundEnabled(prev => {
       const next = !prev;
       if (typeof window !== "undefined") {
-        localStorage.setItem("pabbas_sound_enabled", String(next));
+        localStorage.setItem("rasoi_sound_enabled", String(next));
       }
       if (!next) {
         stopSound();
@@ -222,7 +222,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
     let active = true;
     void refreshOrders();
 
-    const channel = supabase.current.channel("pabbas-orders-live-global");
+    const channel = supabase.current.channel("rasoi-orders-live-global");
     channel.on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
       if (active) void refreshOrders();
     });
@@ -335,7 +335,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
         // 2. Send customer message with assigned rider name and phone
         if (updates.rider_name && !order.rider_name) {
           const addr = [order.address, order.landmark, order.city, order.pincode].filter(Boolean).join(", ") || "No address provided";
-          const riderMessage = `🚚 *Delivery for you — Pabbas*\n\n*Order:* ${order.order_number}\n*Customer:* ${order.customer_name || "Guest"}\n*Address:* ${addr}\n\n*Collect: Rs.${order.total}*\n\nAfter delivering, tap the button below to confirm.`;
+          const riderMessage = `🚚 *Delivery for you — Rasoi*\n\n*Order:* ${order.order_number}\n*Customer:* ${order.customer_name || "Guest"}\n*Address:* ${addr}\n\n*Collect: Rs.${order.total}*\n\nAfter delivering, tap the button below to confirm.`;
 
           notifyStatusWebhook(order.order_number, "rider_assigned", undefined, {
             target: "rider",
@@ -367,7 +367,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
             notifyRiderText(order.rider_phone, `Order ${order.order_number} has been reassigned to another rider. No action needed from you.`).catch(console.error);
           }
           const addr = [order.address, order.landmark, order.city, order.pincode].filter(Boolean).join(", ") || "No address provided";
-          const riderMessage = `🚚 *Delivery for you — Pabbas*\n\n*Order:* ${order.order_number}\n*Customer:* ${order.customer_name || "Guest"}\n*Address:* ${addr}\n\n*Collect: Rs.${order.total}*\n\nAfter delivering, tap the button below to confirm.`;
+          const riderMessage = `🚚 *Delivery for you — Rasoi*\n\n*Order:* ${order.order_number}\n*Customer:* ${order.customer_name || "Guest"}\n*Address:* ${addr}\n\n*Collect: Rs.${order.total}*\n\nAfter delivering, tap the button below to confirm.`;
 
           notifyStatusWebhook(order.order_number, "rider_assigned", undefined, {
             target: "rider",

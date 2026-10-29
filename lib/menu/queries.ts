@@ -59,20 +59,12 @@ function rowToProductionMenuItem(row: {
 }): MenuItem {
   const safePrice = typeof row.price === 'number' ? row.price : Number(row.price ?? 0)
 
-  // Determine if item is vegetarian:
-  // 1. Explicit boolean property if present in row (row.vegetarian or row.is_veg)
-  // 2. Keyword detection in item name, category, or description
-  // 3. Default to true (Pabbas is an iconic pure-vegetarian dairy & ice cream brand)
-  const text = `${row.item_name || ''} ${row.category || ''} ${row.description || ''}`
-  const isExplicitNonVeg =
-    row.vegetarian === false ||
-    row.is_veg === false ||
-    /\b(non-?veg|chicken|mutton|fish|meat|prawn|crab)\b/i.test(text)
-
-  const isVegetarian =
-    row.vegetarian === true ||
-    row.is_veg === true ||
-    !isExplicitNonVeg
+  // Only label a dish vegetarian when the Rasoi catalog explicitly marks it.
+  const isVegetarian = typeof row.vegetarian === 'boolean'
+    ? row.vegetarian
+    : typeof row.is_veg === 'boolean'
+      ? row.is_veg
+      : undefined
 
   return {
     id: String(row.id),

@@ -4,8 +4,8 @@ import { createCustomerOrder } from '@/lib/orders/create'
 
 export async function POST(request: Request) {
   try {
-    const aiSecret = request.headers.get('x-pabbas-ai-secret')?.trim()
-    const isAiBackend = Boolean(aiSecret && aiSecret === process.env.PABBAS_AI_WEBHOOK_SECRET?.trim())
+    const aiSecret = request.headers.get('x-rasoi-ai-secret')?.trim()
+    const isAiBackend = Boolean(aiSecret && aiSecret === process.env.RASOI_AI_WEBHOOK_SECRET?.trim())
 
     let body: Record<string, unknown>
     try {

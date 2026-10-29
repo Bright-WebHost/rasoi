@@ -6,7 +6,7 @@ import { generateToken, hashToken, TOKEN_TTL_SECONDS } from '@/lib/session/token
  * GET /api/ai/tools/customer/lookup
  * 
  * Secure server-side endpoint for n8n to resolve a WhatsApp phone number
- * into a Pabbas customer_id. Creates a stub customer if one doesn't exist.
+ * into a Rasoi customer_id. Creates a stub customer if one doesn't exist.
  * Also generates a secure one-time session token for the CTA.
  */
 export async function GET(request: Request) {
@@ -21,8 +21,8 @@ export async function GET(request: Request) {
     }
 
     // Authenticate the request from n8n
-    const secretHeader = request.headers.get('x-pabbas-ai-secret')?.trim();
-    const expectedSecret = process.env.PABBAS_AI_WEBHOOK_SECRET?.trim();
+    const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim();
+    const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim();
 
     if (!expectedSecret || secretHeader !== expectedSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -78,11 +78,13 @@ export async function GET(request: Request) {
     }
 
     // 4. Return the customer_id and the fully qualified CTA URL
-    const ctaUrl = `https://pabbas-one.vercel.app/auth/whatsapp?token=${encodeURIComponent(rawToken)}`;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || new URL(request.url).origin;
+    const ctaUrl = new URL('/auth/whatsapp', siteUrl);
+    ctaUrl.searchParams.set('token', rawToken);
     
     return NextResponse.json({ 
       customer_id: customer.id,
-      cta_url: ctaUrl
+      cta_url: ctaUrl.toString()
     });
 
   } catch (error) {

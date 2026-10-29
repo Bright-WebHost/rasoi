@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     // 6. Trigger customer notification
-    const customMessage = `Good news! Your order ${order.order_number} is on its way. 🛵\n\nYour delivery partner, ${order.rider_name} (📞 ${order.rider_phone}), will be arriving soon.\n\nPlease keep ₹${order.total} in cash ready for the delivery.\n\nThank you for choosing Pabbas! We hope you enjoy your meal. 😋`;
+    const customMessage = `Good news! Your order ${order.order_number} is on its way. 🛵\n\nYour delivery partner, ${order.rider_name} (📞 ${order.rider_phone}), will be arriving soon.\n\nPlease keep ₹${order.total} in cash ready for the delivery.\n\nThank you for choosing Rasoi! We hope you enjoy your meal. 😋`;
 
     const notifyResult = await notifyStatusWebhook(order.order_number, "out_for_delivery", undefined, {
       total: order.total,
@@ -104,39 +104,44 @@ export async function POST(request: Request) {
       cleanPhone = '91' + cleanPhone;
     }
     const toPhone = '+' + cleanPhone;
-    
-    try {
-      const ycloudRes = await fetch("https://api.ycloud.com/v2/whatsapp/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": ycloudApiKey
-        },
-        body: JSON.stringify({
-          from: "+919180348124",
-          to: toPhone,
-          type: "interactive",
-          interactive: {
-            type: "button",
-            body: { text: riderDeliveryMessage },
-            action: {
-              buttons: [
-                {
-                  type: "reply",
-                  reply: { id: `deliver_collected_${order.order_number}`, title: "Collected" }
-                },
-                {
-                  type: "reply",
-                  reply: { id: `deliver_unpaid_${order.order_number}`, title: "Unpaid" }
-                }
-              ]
-            }
-          }
-        })
-      });
 
-      if (!ycloudRes.ok) {
-        console.error(`[RIDER ACCEPT] Failed to send YCloud interactive message: ${await ycloudRes.text()}`);
+    const ycloudPhoneNumber = process.env.YCLOUD_PHONE_NUMBER?.trim();
+    try {
+      if (!ycloudApiKey || !ycloudPhoneNumber) {
+        console.warn("[RIDER ACCEPT] YCloud sender is not configured; skipping rider message.");
+      } else {
+        const ycloudRes = await fetch("https://api.ycloud.com/v2/whatsapp/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": ycloudApiKey
+          },
+          body: JSON.stringify({
+            from: ycloudPhoneNumber,
+            to: toPhone,
+            type: "interactive",
+            interactive: {
+              type: "button",
+              body: { text: riderDeliveryMessage },
+              action: {
+                buttons: [
+                  {
+                    type: "reply",
+                    reply: { id: `deliver_collected_${order.order_number}`, title: "Collected" }
+                  },
+                  {
+                    type: "reply",
+                    reply: { id: `deliver_unpaid_${order.order_number}`, title: "Unpaid" }
+                  }
+                ]
+              }
+            }
+          })
+        });
+
+        if (!ycloudRes.ok) {
+          console.error(`[RIDER ACCEPT] Failed to send YCloud interactive message: ${await ycloudRes.text()}`);
+        }
       }
     } catch (ycloudErr) {
       console.error("[RIDER ACCEPT] Exception sending YCloud message", ycloudErr);

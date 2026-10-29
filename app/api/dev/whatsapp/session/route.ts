@@ -26,7 +26,7 @@ const DEV_CUSTOMERS: Record<string, { phone: string; name: string }> = {
 export async function POST(request: Request) {
   // ── Dev-access guard ──────────────────────────────────────────────────
   // Locally: always passes (verifyDevAccessFromCookies returns true when NODE_ENV !== 'production').
-  // On Vercel: requires the pabbas_dev_access cookie set by POST /api/dev/access.
+  // On Vercel: requires the rasoi_dev_access cookie set by POST /api/dev/access.
   const hasDevAccess = await verifyDevAccessFromCookies()
   if (!hasDevAccess) {
     return NextResponse.json(

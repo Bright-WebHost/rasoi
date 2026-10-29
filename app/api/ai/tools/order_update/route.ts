@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
-  const secretHeader = request.headers.get('x-pabbas-ai-secret')?.trim()
-  const expectedSecret = process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()
+  const secretHeader = request.headers.get('x-rasoi-ai-secret')?.trim()
+  const expectedSecret = process.env.RASOI_AI_WEBHOOK_SECRET?.trim()
 
   if (!expectedSecret || secretHeader !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

@@ -17,7 +17,7 @@
 import { cookies } from 'next/headers'
 import { createHmac } from 'crypto'
 
-export const SESSION_COOKIE_NAME = 'pabbas_session'
+export const SESSION_COOKIE_NAME = 'rasoi_session'
 const SESSION_MAX_AGE = 60 * 60 * 2 // 2 hours
 
 export interface OrderingSessionPayload {
@@ -28,9 +28,9 @@ export interface OrderingSessionPayload {
 }
 
 function getSecret(): string {
-  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY /* Fallback to prevent breaking existing sessions during migration */
+  const secret = process.env.SESSION_SECRET
   if (!secret) {
-    throw new Error('SESSION_SECRET or SUPABASE_SECRET_KEY must be set for cookie signing.')
+    throw new Error('SESSION_SECRET must be set for cookie signing.')
   }
   return secret
 }

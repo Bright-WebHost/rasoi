@@ -38,16 +38,18 @@ export async function POST(req: Request) {
     }
     
     try {
-      const url = process.env.N8N_STATUS_WEBHOOK_URL || "https://staff.brightmedia.tech/webhook/pabbas-status";
-      const secret = process.env.PABBAS_WHATSAPP_INBOUND_SECRET || process.env.PABBAS_AI_WEBHOOK_SECRET || process.env.PABBAS_N8N_WEBHOOK_SECRET || "";
-      await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-pabbas-whatsapp-secret": secret,
-        },
-        body: JSON.stringify({ order_number, status: 'cancelled', cancel_reason: cancel_reason, staff_token: "customer_cancel" }),
-      });
+      const url = process.env.N8N_STATUS_WEBHOOK_URL?.trim();
+      const secret = process.env.RASOI_WHATSAPP_INBOUND_SECRET?.trim() || process.env.RASOI_N8N_WEBHOOK_SECRET?.trim() || "";
+      if (url && secret) {
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-rasoi-whatsapp-secret": secret,
+          },
+          body: JSON.stringify({ order_number, status: 'cancelled', cancel_reason: cancel_reason, staff_token: "customer_cancel" }),
+        });
+      }
     } catch (e) {
       console.error(e);
     }

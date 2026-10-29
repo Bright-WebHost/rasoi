@@ -1,5 +1,5 @@
 -- ============================================================
--- PABBAS - Phase 9: Restaurant Settings
+-- Rasoi - Phase 9: Restaurant Settings
 -- Idempotent. Run once in the Supabase SQL editor BEFORE deploying
 -- the Settings feature (the app writes orders.delivery_fee).
 -- ============================================================
@@ -88,30 +88,29 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION public.is_open(timestamptz) TO anon, authenticated, service_role;
 
--- 5. Defaults. Existing values are never overwritten.
---    Hours match what is_open() already assumed (07:00-23:30) so nothing changes
---    until an admin edits them in Settings.
+-- 5. Neutral Rasoi defaults. Existing values are never overwritten.
+--    Ordering starts paused until Rasoi's operating details are configured.
 INSERT INTO public.settings (key, value) VALUES
-  ('restaurant_name', 'Pabbas'),
-  ('tagline', 'Delicious desserts since 1969'),
-  ('address', 'Lalbagh, Mangaluru'),
+  ('restaurant_name', 'Rasoi'),
+  ('tagline', ''),
+  ('address', ''),
   ('phone', ''),
-  ('city', 'Mangaluru'),
+  ('city', ''),
   ('logo_url', ''),
-  ('gst_percent', '5'),
+  ('gst_percent', '0'),
   ('gstin', ''),
-  ('open_time', '07:00'),
-  ('close_time', '23:30'),
-  ('hours', '7:00 AM to 11:30 PM, every day'),
-  ('orders_paused', 'false'),
-  ('order_types', 'Delivery, Takeaway, Dine-in'),
+  ('open_time', ''),
+  ('close_time', ''),
+  ('hours', ''),
+  ('orders_paused', 'true'),
+  ('order_types', ''),
   ('min_order', '0'),
-  ('delivery_fee', '35'),
+  ('delivery_fee', '0'),
   ('free_delivery_above', '0'),
   ('delivery_note', ''),
-  ('payment_methods', 'Cash on delivery or at the counter. UPI coming soon.'),
+  ('payment_methods', ''),
   ('auto_print', 'false'),
-  ('unknown_policy', 'If you do not know something, say you will check with the team and offer to take the order anyway. Never invent facts.'),
+  ('unknown_policy', 'If you do not know something, say you will check with the team. Never invent facts or promise availability.'),
   ('google_review_url', '')
 ON CONFLICT (key) DO NOTHING;
 

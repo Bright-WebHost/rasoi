@@ -44,8 +44,8 @@ const reply = (text: string, buttons: Button[] = [], extra: Record<string, unkno
   NextResponse.json({ success: true, reply: text, buttons: buttons.slice(0, 3), ...extra })
 
 export async function POST(request: Request) {
-  const secret = request.headers.get('x-pabbas-ai-secret')?.trim()
-  if (!secret || secret !== process.env.PABBAS_AI_WEBHOOK_SECRET?.trim()) {
+  const secret = request.headers.get('x-rasoi-ai-secret')?.trim()
+  if (!secret || secret !== process.env.RASOI_AI_WEBHOOK_SECRET?.trim()) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

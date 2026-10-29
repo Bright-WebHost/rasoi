@@ -1,28 +1,28 @@
 /**
  * Dev Simulator Access — Cookie utilities
  *
- * Manages the `pabbas_dev_access` HTTP-only cookie that gates access to
+ * Manages the `rasoi_dev_access` HTTP-only cookie that gates access to
  * the WhatsApp Simulator on Vercel (production deployments).
  *
  * Security model:
  * - The DEV_ACCESS_KEY environment variable is the secret. It never leaves the server.
  * - The cookie value is an HMAC-SHA256 signed token, not the raw key.
  * - Secret comparison uses timingSafeEqual to prevent timing attacks.
- * - This cookie is completely separate from `pabbas_session` (customer identity).
+ * - This cookie is completely separate from `rasoi_session` (customer identity).
  *   It only gates developer-tool access; it does NOT identify any customer.
  *
  * LOCAL: The enforcement is skipped entirely (NODE_ENV !== 'production'),
  * so /dev/* routes work normally with zero friction during development.
  *
  * PRODUCTION (Vercel): All /dev/* routes except /dev/login require a valid
- * pabbas_dev_access cookie, issued only by POST /api/dev/access.
+ * rasoi_dev_access cookie, issued only by POST /api/dev/access.
  */
 
 import { timingSafeEqual, createHmac, randomBytes } from 'crypto'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
 
-export const DEV_ACCESS_COOKIE = 'pabbas_dev_access'
+export const DEV_ACCESS_COOKIE = 'rasoi_dev_access'
 /** 8 hours */
 const DEV_ACCESS_MAX_AGE = 60 * 60 * 8
 
@@ -124,7 +124,7 @@ export function verifyAccessSecret(submitted: string): boolean {
 }
 
 /**
- * Sets the pabbas_dev_access HTTP-only cookie in a Route Handler response.
+ * Sets the rasoi_dev_access HTTP-only cookie in a Route Handler response.
  * Call this after successfully verifying the submitted secret.
  *
  * @returns The signed cookie value to write, or null if DEV_ACCESS_KEY is not set.
@@ -145,7 +145,7 @@ export async function setDevAccessCookie(): Promise<boolean> {
 }
 
 /**
- * Clears the pabbas_dev_access cookie.
+ * Clears the rasoi_dev_access cookie.
  */
 export async function clearDevAccessCookie(): Promise<void> {
   const store = await cookies()

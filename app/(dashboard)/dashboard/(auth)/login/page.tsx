@@ -17,7 +17,7 @@ function LoginForm() {
   return (
     <div className="min-h-screen grid place-items-center bg-white p-6">
       <div className="w-full max-w-[330px]">
-        <h1 className="font-[Fraunces] text-[32px] text-[var(--red)] mb-0.5 font-bold">Pabbas</h1>
+        <h1 className="font-[Fraunces] text-[32px] text-[var(--red)] mb-0.5 font-bold">Rasoi</h1>
         <p className="text-[var(--muted)] mb-6">Staff dashboard</p>
         
         {(state?.error || urlError) && (

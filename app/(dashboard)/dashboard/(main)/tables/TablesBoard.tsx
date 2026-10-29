@@ -840,10 +840,10 @@ export default function TablesBoard() {
 
             <div className="relative z-10 w-full">
               <h1 className="text-4xl font-black text-white tracking-tighter mb-1 uppercase">
-                Pabbas
+                Rasoi
               </h1>
               <p className="text-[12px] font-extrabold text-white/90 tracking-widest uppercase">
-                Ideal Ice Cream
+                Dine-In & Takeaway
               </p>
             </div>
 

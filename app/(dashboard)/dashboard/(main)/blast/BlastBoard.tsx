@@ -47,7 +47,7 @@ export default function BlastBoard() {
     }
     fetchData();
 
-    const saved = sessionStorage.getItem("pabbas_blast_selection");
+    const saved = sessionStorage.getItem("rasoi_blast_selection");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -102,6 +102,11 @@ export default function BlastBoard() {
       if (buttonComponent) {
         const urlButtonIndex = buttonComponent.buttons?.findIndex((b: any) => b.type === "URL" && b.url?.includes("{{1}}"));
         if (urlButtonIndex !== undefined && urlButtonIndex !== -1) {
+          const buttonUrlParam = process.env.NEXT_PUBLIC_BLAST_BUTTON_URL_PARAM?.trim();
+          if (!buttonUrlParam) {
+            setResult({ error: "Configure the approved Rasoi campaign link before sending this template." });
+            return;
+          }
           components.push({
             type: "button",
             sub_type: "url",
@@ -109,7 +114,7 @@ export default function BlastBoard() {
             parameters: [
               {
                 type: "text",
-                text: "pabbas_promo_blast" // Supply the required parameter value
+                text: buttonUrlParam
               }
             ]
           });
@@ -176,7 +181,7 @@ export default function BlastBoard() {
           <button 
             onClick={() => {
               setSelectedPhones([]);
-              sessionStorage.removeItem("pabbas_blast_selection");
+              sessionStorage.removeItem("rasoi_blast_selection");
             }}
             className="underline hover:text-[#9c291d] font-extrabold text-[11px] uppercase tracking-widest"
           >

@@ -57,7 +57,7 @@ export default function DevLoginPage() {
             P
           </div>
           <div className="text-center">
-            <h1 className="text-white font-bold text-xl tracking-tight">Pabbas AI Simulator</h1>
+            <h1 className="text-white font-bold text-xl tracking-tight">Rasoi AI Simulator</h1>
             <p className="text-[#8696a0] text-sm mt-1">Development Access</p>
           </div>
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-1.5">
@@ -136,7 +136,7 @@ export default function DevLoginPage() {
 
           <div className="border-t border-[#2a3942] px-6 py-3">
             <p className="text-[#8696a0] text-[11px] text-center leading-relaxed">
-              Access requires a developer key. Contact the Pabbas tech team for credentials.
+              Access requires a developer key. Contact the Rasoi tech team for credentials.
             </p>
           </div>
         </div>

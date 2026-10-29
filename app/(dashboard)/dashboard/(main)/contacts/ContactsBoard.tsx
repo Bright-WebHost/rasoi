@@ -142,7 +142,7 @@ export default function ContactsBoard() {
   
   const handleProceedToBlast = () => {
     if (selectedPhones.size > 0) {
-      sessionStorage.setItem("pabbas_blast_selection", JSON.stringify(Array.from(selectedPhones)));
+      sessionStorage.setItem("rasoi_blast_selection", JSON.stringify(Array.from(selectedPhones)));
       router.push("/dashboard/blast");
     }
   };

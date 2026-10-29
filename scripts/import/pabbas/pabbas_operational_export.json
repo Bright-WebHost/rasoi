@@ -1,0 +1,755 @@
+{
+  "export_metadata": {
+    "generated_at": "2026-10-28T10:39:12.662Z",
+    "source_project": "clqzctntkwzahdfjeqlx",
+    "description": "Pabbas restaurant operational configuration and catalog export for Rasoi migration.",
+    "included_tables": [
+      "menu_items",
+      "settings",
+      "restaurant_info",
+      "restaurant_tables"
+    ],
+    "record_counts": {
+      "menu_items": 22,
+      "settings": 21,
+      "restaurant_info": 7,
+      "restaurant_tables": 5
+    },
+    "excluded_tables": [
+      "customers",
+      "app_customers",
+      "customer_addresses",
+      "ordering_sessions",
+      "orders",
+      "order_items",
+      "order_status_log",
+      "messages",
+      "chat_sessions",
+      "memory",
+      "carts",
+      "ai_carts",
+      "blast_log",
+      "reviews",
+      "staff_members",
+      "riders",
+      "settings_private"
+    ],
+    "excluded_fields": {
+      "restaurant_tables": [
+        "current_order_id (decoupled and set to null)"
+      ]
+    }
+  },
+  "tables": {
+    "menu_items": [
+      {
+        "id": "febb2222-988d-4873-940c-6335de56d60e",
+        "item_number": 1,
+        "item_name": "Golden Gadbad",
+        "category": "Gold Series Sundaes",
+        "price": 260,
+        "available": true,
+        "description": "Layers of fruit, vanilla, nuts and Pabbas' signature sauces.",
+        "image_url": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?auto=format&fit=crop&w=900&q=85",
+        "variants": {
+          "options": [
+            {
+              "label": "Topping",
+              "values": [
+                "Classic",
+                "Extra nuts"
+              ]
+            }
+          ]
+        },
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-19T11:07:22.530721+00:00"
+      },
+      {
+        "id": "50d1f4da-767f-4541-b43c-661b7cdf542a",
+        "item_number": 2,
+        "item_name": "Dubai Chocolate",
+        "category": "Gold Series Sundaes",
+        "price": 280,
+        "available": true,
+        "description": "Silky chocolate ice cream, pistachio crunch and golden drizzle.",
+        "image_url": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-09T10:21:15.964976+00:00"
+      },
+      {
+        "id": "2bcbe2a6-a9cb-403e-9146-141b5b7ba795",
+        "item_number": 3,
+        "item_name": "Iranian Pistachio Sundae",
+        "category": "Gold Series Sundaes",
+        "price": 275,
+        "available": true,
+        "description": "Creamy pistachio, roasted nuts and a delicate rose finish.",
+        "image_url": "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "f7955f8d-2bd3-450d-8cf6-53783797772d",
+        "item_number": 4,
+        "item_name": "Biscoff Sundae",
+        "category": "Special Ice Cream",
+        "price": 230,
+        "available": true,
+        "description": "Caramel biscuit crumble with vanilla and warm cookie sauce.",
+        "image_url": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=900&q=85",
+        "variants": {
+          "options": [
+            {
+              "label": "Size",
+              "values": [
+                "Regular",
+                "Large"
+              ]
+            }
+          ]
+        },
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "60e8ebe5-9a16-41ae-a6bd-5776df52a69e",
+        "item_number": 5,
+        "item_name": "Special Gadbad",
+        "category": "Special Ice Cream",
+        "price": 190,
+        "available": true,
+        "description": "A cheerful Pabbas classic with three flavours, fruit and jelly.",
+        "image_url": "https://images.unsplash.com/photo-1560008581-09826d1de69e?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "9ca0209c-9a50-4f44-a778-8b870b72dacb",
+        "item_number": 6,
+        "item_name": "Royal Falooda",
+        "category": "Special Ice Cream",
+        "price": 210,
+        "available": true,
+        "description": "Rose milk, basil seeds, vermicelli and a scoop of ice cream.",
+        "image_url": "/falooda.jpg",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "f4e7c1ac-1383-4a26-bf52-27abd34fdb4d",
+        "item_number": 7,
+        "item_name": "Vanilla Cone",
+        "category": "Konero In Cones",
+        "price": 55,
+        "available": true,
+        "description": "A crisp cone with smooth, timeless vanilla.",
+        "image_url": "/vanillacone.png",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-07T05:09:57.946721+00:00"
+      },
+      {
+        "id": "35dfedca-e630-473a-953d-3c4e53a98fbc",
+        "item_number": 8,
+        "item_name": "Chocolate Cone",
+        "category": "Konero In Cones",
+        "price": 65,
+        "available": true,
+        "description": "Chocolate ice cream in a freshly baked cone.",
+        "image_url": "https://images.unsplash.com/photo-1570197788417-0e82375c9371?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "a2c712ab-bf3b-4913-b460-3def3ac3097d",
+        "item_number": 9,
+        "item_name": "Kaju Malai Cone",
+        "category": "Konero In Cones",
+        "price": 75,
+        "available": true,
+        "description": "Rich cashew creaminess with a nutty finish.",
+        "image_url": "https://images.unsplash.com/photo-1570197788417-0e82375c9371?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "dbcd8af5-535f-49ff-b8cd-083f376aa088",
+        "item_number": 10,
+        "item_name": "Classic Choco Shake",
+        "category": "Milk Shake",
+        "price": 155,
+        "available": true,
+        "description": "Thick, cold and unapologetically chocolatey.",
+        "image_url": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "ecafa4fd-3949-4063-9860-e79f6ddab38f",
+        "item_number": 11,
+        "item_name": "Mango Shake",
+        "category": "Milk Shake",
+        "price": 165,
+        "available": true,
+        "description": "Seasonal mango blended into a creamy, sunny sip.",
+        "image_url": "https://images.unsplash.com/photo-1546173159-315724a31696?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "d19aced1-d0eb-4797-8aa4-ed17a19312b2",
+        "item_number": 12,
+        "item_name": "Fresh Lime Soda",
+        "category": "Juice",
+        "price": 85,
+        "available": true,
+        "description": "Bright, fizzy and made to order.",
+        "image_url": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-19T11:07:24.469289+00:00"
+      },
+      {
+        "id": "51c36e9e-532d-4050-b55b-ebb7dc12ab9d",
+        "item_number": 13,
+        "item_name": "Watermelon Juice",
+        "category": "Juice",
+        "price": 110,
+        "available": true,
+        "description": "Chilled, refreshing and naturally sweet.",
+        "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-19T11:07:26.071604+00:00"
+      },
+      {
+        "id": "f08d716b-09dc-4d68-8534-9445d0aebaec",
+        "item_number": 14,
+        "item_name": "Choco Lava Cake",
+        "category": "Sweets",
+        "price": 145,
+        "available": true,
+        "description": "Warm chocolate cake with a molten centre.",
+        "image_url": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "da93cb2f-e2aa-497c-88ed-847da887807d",
+        "item_number": 15,
+        "item_name": "Hot Carrot Halwa",
+        "category": "Sweets",
+        "price": 130,
+        "available": true,
+        "description": "Comforting carrot halwa with nuts and a warm aroma.",
+        "image_url": "https://images.unsplash.com/photo-1589119908995-c6837fa14848?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "9542dd8a-fafc-45a5-9729-f5674ab646b6",
+        "item_number": 16,
+        "item_name": "Pabbas Veg Sandwich",
+        "category": "Sandwiches",
+        "price": 120,
+        "available": true,
+        "description": "Toasted bread, fresh vegetables and a creamy spread.",
+        "image_url": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-23T10:18:21.572146+00:00"
+      },
+      {
+        "id": "5c78a81e-067e-46b4-92d9-f01104fa2b50",
+        "item_number": 17,
+        "item_name": "Classic Cheese Pizza",
+        "category": "Pizzas",
+        "price": 240,
+        "available": true,
+        "description": "A crisp base, tomato sauce and a generous cheese pull.",
+        "image_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-10T06:59:10.095796+00:00"
+      },
+      {
+        "id": "8bbf52e5-ac36-4fce-a888-a1a60d08e52a",
+        "item_number": 18,
+        "item_name": "Masala Fries",
+        "category": "Short Eats",
+        "price": 105,
+        "available": true,
+        "description": "Golden fries tossed with a bright house masala.",
+        "image_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "2d8ae3db-4fde-4ca2-9d56-280a52e54ecd",
+        "item_number": 19,
+        "item_name": "Chocolate Premium Cup",
+        "category": "Premium Ice Cream Cups",
+        "price": 95,
+        "available": true,
+        "description": "A neat little cup of deep chocolate indulgence.",
+        "image_url": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-09-22T10:17:44.493799+00:00"
+      },
+      {
+        "id": "bae16806-bd22-43dd-a35e-56b97bb173f2",
+        "item_number": 20,
+        "item_name": "Classic Family Pack",
+        "category": "1 Litre Family Pack",
+        "price": 400,
+        "available": true,
+        "description": "A litre of crowd-pleasing vanilla for sharing.",
+        "image_url": "https://images.unsplash.com/photo-1567206563064-6f60f40a2b57?auto=format&fit=crop&w=900&q=85",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-09-22T10:17:44.493799+00:00",
+        "updated_at": "2026-10-02T06:22:06.680132+00:00"
+      },
+      {
+        "id": "33c8277f-4ab8-4b19-b203-7ed56127eb87",
+        "item_number": 121,
+        "item_name": "combo offer",
+        "category": "offer",
+        "price": 550,
+        "available": false,
+        "description": null,
+        "image_url": null,
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-10-05T06:33:03.276493+00:00",
+        "updated_at": "2026-10-06T10:45:47.678912+00:00"
+      },
+      {
+        "id": "9cdfcbce-f63f-4d8a-91d4-75b9ad29a9df",
+        "item_number": 1233,
+        "item_name": "catlet",
+        "category": "snacks",
+        "price": 45,
+        "available": true,
+        "description": null,
+        "image_url": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/2kjos38g0da_1791617312262.jpg",
+        "variants": null,
+        "is_pinned": false,
+        "created_at": "2026-10-10T07:29:04.629437+00:00",
+        "updated_at": "2026-10-10T07:29:04.629437+00:00"
+      }
+    ],
+    "settings": [
+      {
+        "key": "address",
+        "value": "Lalbagh, Mangaluru",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "auto_print",
+        "value": "false",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "city",
+        "value": "Mangaluru",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "close_time",
+        "value": "23:30",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "delivery_fee",
+        "value": "30",
+        "updated_at": "2026-10-17T06:55:27.542+00:00"
+      },
+      {
+        "key": "delivery_note",
+        "value": "",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "free_delivery_above",
+        "value": "200",
+        "updated_at": "2026-10-17T07:02:12.301+00:00"
+      },
+      {
+        "key": "google_review_url",
+        "value": "",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "gst_percent",
+        "value": "5",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "gstin",
+        "value": "",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "hours",
+        "value": "7:00 AM to 11:30 PM, everyday",
+        "updated_at": "2026-10-17T10:20:47.714+00:00"
+      },
+      {
+        "key": "logo_url",
+        "value": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/branding/logo-1792226243091.png",
+        "updated_at": "2026-10-17T08:37:32.808+00:00"
+      },
+      {
+        "key": "min_order",
+        "value": "0",
+        "updated_at": "2026-10-17T07:02:12.301+00:00"
+      },
+      {
+        "key": "open_time",
+        "value": "07:00",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "order_types",
+        "value": "Delivery, Takeaway, Dine-in",
+        "updated_at": "2026-10-17T10:11:38.809+00:00"
+      },
+      {
+        "key": "orders_paused",
+        "value": "false",
+        "updated_at": "2026-10-20T06:44:38.545+00:00"
+      },
+      {
+        "key": "payment_methods",
+        "value": "Cash on delivery or at the counter. UPI coming soon.",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "phone",
+        "value": "",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "restaurant_name",
+        "value": "Pabbas",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      },
+      {
+        "key": "tagline",
+        "value": "Delicious desserts",
+        "updated_at": "2026-10-17T07:25:41.785+00:00"
+      },
+      {
+        "key": "unknown_policy",
+        "value": "If you do not know something, say you will check with the team and offer to take the order anyway. Never invent facts.",
+        "updated_at": "2026-10-17T05:31:59.412707+00:00"
+      }
+    ],
+    "restaurant_info": [
+      {
+        "id": "2f57f549-8666-4b88-ad6b-d4f8eaedbe86",
+        "info_key": "address",
+        "info_value": "[PENDING BUSINESS CONFIRMATION]",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "5183812a-af7b-4fbf-bf88-f613394f40d4",
+        "info_key": "cancellation_rules",
+        "info_value": "Orders cannot be modified or cancelled once they enter the \"preparing\" state.",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "2f7cd666-92ea-4c52-88c2-c19012169d25",
+        "info_key": "delivery_areas",
+        "info_value": "[PENDING BUSINESS CONFIRMATION]",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "5c25aa05-f87c-4f30-9d30-0f54d3d21972",
+        "info_key": "delivery_charges",
+        "info_value": "There is a flat delivery fee of Rs 35 for all delivery orders.",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "ba60c4de-ee37-4570-838b-aaa8436aeed2",
+        "info_key": "delivery_time",
+        "info_value": "[PENDING BUSINESS CONFIRMATION]",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "b3f46798-1f12-41be-ba65-2183a46f6f31",
+        "info_key": "opening_hours",
+        "info_value": "[PENDING BUSINESS CONFIRMATION]",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      },
+      {
+        "id": "d11a992e-31a3-4618-b0f1-261c88495a67",
+        "info_key": "payment_methods",
+        "info_value": "We accept UPI, cash, and online payments.",
+        "created_at": "2026-09-30T05:14:28.079026+00:00",
+        "updated_at": "2026-09-30T05:14:28.079026+00:00"
+      }
+    ],
+    "restaurant_tables": [
+      {
+        "id": "a302e5af-65d8-409a-a6cd-37549625d9b9",
+        "table_number": "1",
+        "qr_code_url": null,
+        "is_active": false,
+        "current_order_id": null,
+        "created_at": "2026-10-06T08:35:07.291181+00:00"
+      },
+      {
+        "id": "61586826-d56b-428c-bbd4-22f378d052cf",
+        "table_number": "2",
+        "qr_code_url": null,
+        "is_active": false,
+        "current_order_id": null,
+        "created_at": "2026-10-06T15:49:25.083571+00:00"
+      },
+      {
+        "id": "663d29bf-5b76-4fdc-9d2b-a8e030e48415",
+        "table_number": "3",
+        "qr_code_url": null,
+        "is_active": false,
+        "current_order_id": null,
+        "created_at": "2026-10-06T15:49:29.27527+00:00"
+      },
+      {
+        "id": "6f3c3844-aa5e-4964-b66a-205470157c29",
+        "table_number": "4",
+        "qr_code_url": null,
+        "is_active": false,
+        "current_order_id": null,
+        "created_at": "2026-10-06T15:49:32.224646+00:00"
+      },
+      {
+        "id": "9db46656-effe-439f-af71-404ce7a7173e",
+        "table_number": "5",
+        "qr_code_url": null,
+        "is_active": true,
+        "current_order_id": null,
+        "created_at": "2026-10-12T05:05:26.482922+00:00"
+      }
+    ]
+  },
+  "image_manifest": [
+    {
+      "source_type": "supabase_storage",
+      "bucket": "menu_images",
+      "remote_path": "2kjos38g0da_1791617312262.jpg",
+      "public_url": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/2kjos38g0da_1791617312262.jpg",
+      "local_export_path": "pabbas_menu_assets/2kjos38g0da_1791617312262.jpg",
+      "file_size_bytes": 17962539,
+      "purpose": "Menu item #1233 (catlet)"
+    },
+    {
+      "source_type": "supabase_storage",
+      "bucket": "menu_images",
+      "remote_path": "8b6i97005tc_1791883259274.png",
+      "public_url": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/8b6i97005tc_1791883259274.png",
+      "local_export_path": "pabbas_menu_assets/8b6i97005tc_1791883259274.png",
+      "file_size_bytes": 331303,
+      "purpose": "Menu images storage object"
+    },
+    {
+      "source_type": "supabase_storage",
+      "bucket": "menu_images",
+      "remote_path": "branding/logo-1792226243091.png",
+      "public_url": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/branding/logo-1792226243091.png",
+      "local_export_path": "pabbas_menu_assets/branding/logo-1792226243091.png",
+      "file_size_bytes": 1056978,
+      "purpose": "Active restaurant logo in settings"
+    },
+    {
+      "source_type": "supabase_storage",
+      "bucket": "menu_images",
+      "remote_path": "branding/logo-1792395214824.png",
+      "public_url": "https://clqzctntkwzahdfjeqlx.supabase.co/storage/v1/object/public/menu_images/branding/logo-1792395214824.png",
+      "local_export_path": "pabbas_menu_assets/branding/logo-1792395214824.png",
+      "file_size_bytes": 1056978,
+      "purpose": "Branding variant in menu_images storage"
+    },
+    {
+      "source_type": "local_public_asset",
+      "original_path": "public/falooda.jpg",
+      "reference_url": "/falooda.jpg",
+      "local_export_path": "pabbas_menu_assets/falooda.jpg",
+      "file_size_bytes": 26303,
+      "purpose": "Menu item #6 (Royal Falooda) local asset"
+    },
+    {
+      "source_type": "local_public_asset",
+      "original_path": "public/vanillacone.png",
+      "reference_url": "/vanillacone.png",
+      "local_export_path": "pabbas_menu_assets/vanillacone.png",
+      "file_size_bytes": 100492,
+      "purpose": "Menu item #7 (Vanilla Cone) local asset"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 1,
+      "menu_item_name": "Golden Gadbad",
+      "external_url": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #1 (Golden Gadbad)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 2,
+      "menu_item_name": "Dubai Chocolate",
+      "external_url": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #2 (Dubai Chocolate)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 3,
+      "menu_item_name": "Iranian Pistachio Sundae",
+      "external_url": "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #3 (Iranian Pistachio Sundae)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 4,
+      "menu_item_name": "Biscoff Sundae",
+      "external_url": "https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #4 (Biscoff Sundae)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 5,
+      "menu_item_name": "Special Gadbad",
+      "external_url": "https://images.unsplash.com/photo-1560008581-09826d1de69e?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #5 (Special Gadbad)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 8,
+      "menu_item_name": "Chocolate Cone",
+      "external_url": "https://images.unsplash.com/photo-1570197788417-0e82375c9371?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #8 (Chocolate Cone)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 9,
+      "menu_item_name": "Kaju Malai Cone",
+      "external_url": "https://images.unsplash.com/photo-1570197788417-0e82375c9371?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #9 (Kaju Malai Cone)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 10,
+      "menu_item_name": "Classic Choco Shake",
+      "external_url": "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #10 (Classic Choco Shake)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 11,
+      "menu_item_name": "Mango Shake",
+      "external_url": "https://images.unsplash.com/photo-1546173159-315724a31696?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #11 (Mango Shake)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 12,
+      "menu_item_name": "Fresh Lime Soda",
+      "external_url": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #12 (Fresh Lime Soda)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 13,
+      "menu_item_name": "Watermelon Juice",
+      "external_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #13 (Watermelon Juice)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 14,
+      "menu_item_name": "Choco Lava Cake",
+      "external_url": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #14 (Choco Lava Cake)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 15,
+      "menu_item_name": "Hot Carrot Halwa",
+      "external_url": "https://images.unsplash.com/photo-1589119908995-c6837fa14848?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #15 (Hot Carrot Halwa)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 16,
+      "menu_item_name": "Pabbas Veg Sandwich",
+      "external_url": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #16 (Pabbas Veg Sandwich)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 17,
+      "menu_item_name": "Classic Cheese Pizza",
+      "external_url": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #17 (Classic Cheese Pizza)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 18,
+      "menu_item_name": "Masala Fries",
+      "external_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #18 (Masala Fries)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 19,
+      "menu_item_name": "Chocolate Premium Cup",
+      "external_url": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #19 (Chocolate Premium Cup)"
+    },
+    {
+      "source_type": "external_unsplash",
+      "menu_item_number": 20,
+      "menu_item_name": "Classic Family Pack",
+      "external_url": "https://images.unsplash.com/photo-1567206563064-6f60f40a2b57?auto=format&fit=crop&w=900&q=85",
+      "purpose": "Menu item #20 (Classic Family Pack)"
+    }
+  ]
+}

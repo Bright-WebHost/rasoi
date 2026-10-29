@@ -153,6 +153,7 @@ export interface OrderItemRow {
   unit_price_paise_snapshot: number
   quantity: number
   line_total_paise: number
+  notes?: string | null
   created_at: string
 }
 

@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { order_id, table_number, new_items } = body;
 
-    if (!order_id || !table_number || !new_items || !new_items.length) {
+    if (!order_id || !table_number || !Array.isArray(new_items) || new_items.length === 0) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -16,12 +16,26 @@ export async function POST(request: Request) {
     // 1. Fetch existing order
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, items_json, total, status, order_number')
+      .select('id, items_json, total, status, order_number, order_type, table_number')
       .eq('id', order_id)
       .single();
 
     if (orderError || !order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
+    }
+
+    if (order.order_type !== 'dine-in' || String(order.table_number) !== String(table_number)) {
+      return NextResponse.json({ success: false, error: 'This order does not belong to that table.' }, { status: 409 });
+    }
+
+    const { data: table, error: tableError } = await adminClient
+      .from('restaurant_tables')
+      .select('is_active, current_order_id')
+      .eq('table_number', table_number)
+      .maybeSingle();
+
+    if (tableError || !table?.is_active || table.current_order_id !== order.id || !['new', 'preparing', 'ready_for_pickup'].includes(order.status)) {
+      return NextResponse.json({ success: false, error: 'This table order is already closed. Please ask restaurant staff for help.' }, { status: 409 });
     }
 
     // 2. Append items with new round
@@ -34,9 +48,19 @@ export async function POST(request: Request) {
 
     const mergedItems = [...existingItems];
 
-    for (const newItem of new_items) {
+    for (const value of new_items) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return NextResponse.json({ success: false, error: 'Invalid item' }, { status: 400 });
+      }
+      const { special_note, ...newItem } = value as Record<string, any>;
+      const note = typeof special_note === 'string' ? special_note.trim() : '';
+      if (note.length > 300) {
+        return NextResponse.json({ success: false, error: 'Special instructions must be 300 characters or fewer.' }, { status: 400 });
+      }
+
       mergedItems.push({
         ...newItem,
+        notes: note || null,
         is_new_addition: true,
         round: nextRound
       });
@@ -79,7 +103,7 @@ export async function POST(request: Request) {
       await notifyStatusWebhook(order.order_number, "preparing", undefined, { is_update: true });
     }
 
-    return NextResponse.json({ success: true, new_total: updatedTotal, merged_items: mergedItems });
+    return NextResponse.json({ success: true, order_number: order.order_number, status: newStatus, new_total: updatedTotal, merged_items: mergedItems });
 
   } catch (error: any) {
     console.error('Append Order Error:', error);

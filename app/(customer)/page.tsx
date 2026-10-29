@@ -14,7 +14,7 @@ const whatsAppUrl = whatsAppNumber ? `https://wa.me/${whatsAppNumber}` : "/";
 const whatsAppLabel = whatsAppNumber ? "Back to WhatsApp" : "Return to Rasoi";
 const initialDetails: CustomerDetails = { name: "", phone: "", address: "", landmark: "", pincode: "", pickupDate: "", pickupTime: "19:00", payment: "cash" };
 
-type Screen = "welcome" | "menu" | "checkout" | "confirmed";
+type Screen = "welcome" | "menu" | "checkout" | "confirmed" | "table-order";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("welcome");
@@ -105,6 +105,8 @@ export default function Home() {
             setActiveOrderItems(data.active_order.items || []);
             setActiveOrderStatus(data.active_order.status);
             setActiveOrderTotal(data.active_order.total || 0);
+            setOrderNumber(data.active_order.order_number || "");
+            setScreen("table-order");
           }
         })
         .catch(console.error);
@@ -114,6 +116,42 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    if (!activeOrderId || orderType !== "dine-in" || !["table-order", "menu", "checkout"].includes(screen)) return;
+
+    let cancelled = false;
+    const refreshTableOrder = async () => {
+      try {
+        const response = await fetch(`/api/tables/active?table=${encodeURIComponent(table)}`, { cache: "no-store" });
+        const data = await response.json();
+        if (cancelled || !data.success) return;
+        if (data.active_order) {
+          setActiveOrderId(data.active_order.id);
+          setActiveOrderItems(data.active_order.items || []);
+          setActiveOrderStatus(data.active_order.status);
+          setActiveOrderTotal(Number(data.active_order.total) || 0);
+          setOrderNumber(data.active_order.order_number || "");
+        } else {
+          setActiveOrderId(null);
+          setActiveOrderStatus("closed");
+          if (screen !== "table-order") {
+            setActiveOrderItems([]);
+            setActiveOrderTotal(0);
+            setOrderNumber("");
+          }
+        }
+      } catch (error) {
+        console.error("Failed to refresh table order:", error);
+      }
+    };
+
+    const timer = window.setInterval(refreshTableOrder, 10000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [screen, activeOrderId, orderType, table]);
 
   const visibleItems = useMemo(() => {
     return menuItems.filter((item) => {
@@ -149,14 +187,16 @@ export default function Home() {
   const addToCart = (item: MenuItem, amount = 1) => { 
     setCart((current) => { 
       const existing = current.find((line) => line.item.id === item.id); 
-      return existing ? current.map((line) => line.item.id === item.id ? { ...line, quantity: line.quantity + amount } : line) : [...current, { item, quantity: amount }]; 
+      return existing ? current.map((line) => line.item.id === item.id ? { ...line, quantity: line.quantity + amount } : line) : [...current, { item, quantity: amount, specialNote: "" }];
     }); 
     setNotice(`${item.name} added`); 
     window.setTimeout(() => setNotice(""), 1800); 
   };
 
   const changeQuantity = (id: string, delta: number) => setCart((current) => current.flatMap((line) => line.item.id === id ? (line.quantity + delta > 0 ? [{ ...line, quantity: line.quantity + delta }] : []) : [line]));
+  const changeSpecialNote = (id: string, note: string) => setCart((current) => current.map((line) => line.item.id === id ? { ...line, specialNote: note.slice(0, 300) } : line));
   const quantityFor = (id: string) => cart.find((line) => line.item.id === id)?.quantity ?? 0;
+  const specialNoteFor = (id: string) => cart.find((line) => line.item.id === id)?.specialNote ?? "";
   const selectCategory = (value: string) => { setCategory(value); setMenuMenuOpen(false); document.getElementById("menu-list")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const [tables, setTables] = useState<import("@/lib/supabase/types").RestaurantTableRow[]>([]);
   const [selectedTableId, setSelectedTableId] = useState<string>("");
@@ -218,7 +258,8 @@ export default function Home() {
             menu_item_id: line.item.id,
             item_name: line.item.name,
             quantity: line.quantity,
-            price: line.item.price
+            price: line.item.price,
+            special_note: line.specialNote?.trim() || null
           }))
         };
         const res = await fetch('/api/orders/append', {
@@ -229,12 +270,13 @@ export default function Home() {
         const data = await res.json();
         
         if (res.ok && data.success) {
-          setOrderNumber(data.merged_items ? "Updated successfully" : "Updated");
+          setOrderNumber(data.order_number || orderNumber);
           setCart([]);
           setCartOpen(false);
-          setScreen("confirmed");
+          setScreen("table-order");
           if (data.new_total) setActiveOrderTotal(data.new_total);
           if (data.merged_items) setActiveOrderItems(data.merged_items);
+          if (data.status) setActiveOrderStatus(data.status);
         } else {
           setSubmitError(data.error || "Failed to update order");
         }
@@ -253,7 +295,8 @@ export default function Home() {
           idempotency_key: currentIdempotencyKey,
           cart_items: cart.map(line => ({
             menu_item_id: line.item.id,
-            quantity: line.quantity
+            quantity: line.quantity,
+            special_note: line.specialNote?.trim() || null
           }))
         };
 
@@ -271,9 +314,27 @@ export default function Home() {
           return;
         }
 
-        setOrderNumber(data.order?.order_number || 'Pending');
-        setScreen("confirmed");
+        const createdOrderNumber = data.order?.order_number || 'Pending';
+        setOrderNumber(createdOrderNumber);
+        setIdempotencyKey("");
         setCartOpen(false);
+        if (orderType === "dine-in") {
+          setActiveOrderId(data.order?.id || null);
+          setActiveOrderItems(cart.map((line) => ({
+            menu_item_id: line.item.id,
+            item_name: line.item.name,
+            quantity: line.quantity,
+            unit_price: line.item.price,
+            notes: line.specialNote?.trim() || null,
+            round: 1,
+          })));
+          setActiveOrderStatus(data.order?.order_status || "new");
+          setActiveOrderTotal(Number(data.total) || total);
+          setCart([]);
+          setScreen("table-order");
+        } else {
+          setScreen("confirmed");
+        }
       } // CLOSE THE ELSE BLOCK
     } catch (err: any) {
       setSubmitError(err?.message || 'Network error placing order');
@@ -286,14 +347,28 @@ export default function Home() {
 
   if (screen === "checkout") return <Checkout activeOrderItems={activeOrderItems} orderType={orderType} setOrderType={setOrderType} canDeliver={!store || store.orderTypes.delivery} canTakeaway={!store || store.orderTypes.takeaway} table={table} setTable={setTable} tables={tables} selectedTableId={selectedTableId} setSelectedTableId={setSelectedTableId} partySize={partySize} setPartySize={setPartySize} isAsap={isAsap} setIsAsap={setIsAsap} cart={cart} subtotal={subtotal} deliveryFee={deliveryFee} waivedDeliveryFee={waivedDeliveryFee} total={total} blockReason={checkoutBlock} deliveryNote={store?.deliveryNote || ""} details={details} setDetails={setDetails} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setScreen("menu")} onPlace={placeOrder} />;
 
+  if (screen === "table-order") return <TableOrderPage table={table} orderNumber={orderNumber} status={activeOrderStatus} items={activeOrderItems} total={activeOrderTotal} onAddMore={() => { setCart([]); if (activeOrderStatus === "closed") { setActiveOrderItems([]); setActiveOrderTotal(0); setOrderNumber(""); setIdempotencyKey(""); } setScreen("menu"); }} />;
+
   if (screen === "confirmed") return <Confirmation orderNumber={orderNumber} orderType={orderType} table={table} cart={cart} total={total} onContinue={() => { setScreen("welcome"); setCart([]); setIdempotencyKey(""); }} />;
 
 
   return <div className="min-h-screen bg-gray-50 text-gray-900 pb-[80px]">
     <div className="max-w-[768px] mx-auto bg-white min-h-screen relative shadow-sm">
-      <Header search={search} setSearch={setSearch} onBack={() => setScreen("welcome")} />
+      <Header search={search} setSearch={setSearch} onBack={() => setScreen(activeOrderId && orderType === "dine-in" ? "table-order" : "welcome")} />
       
       <RestaurantInfo orderType={orderType} table={table} store={store} />
+
+      {isTableAppend && (
+        <div className="px-4 pt-3">
+          <button type="button" onClick={() => setScreen("table-order")} className="flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-left">
+            <span>
+              <span className="block text-[13px] font-extrabold text-emerald-900">Table {table} · current order</span>
+              <span className="mt-0.5 block text-[11px] font-semibold text-emerald-700">View ordered items and kitchen status</span>
+            </span>
+            <span className="text-[13px] font-black text-emerald-800">{money(activeOrderTotal)} →</span>
+          </button>
+        </div>
+      )}
 
       <nav aria-label="Menu categories" className="sticky top-[64px] z-30 flex gap-3 overflow-x-auto bg-white px-4 py-3 border-b border-gray-100 shadow-[0_2px_15px_rgba(0,0,0,0.04)] no-scrollbar">
         <button onClick={() => setMenuMenuOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-[13px] font-bold shrink-0 text-gray-700 transition">
@@ -316,7 +391,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 gap-3 px-3.5 sm:grid-cols-3">
             {visibleItems.map((item) => (
-              <ProductCard key={item.id} item={item} quantity={quantityFor(item.id)} onAdd={addToCart} onChange={changeQuantity} onDetails={setSelectedItem} />
+            <ProductCard key={item.id} item={item} quantity={quantityFor(item.id)} specialNote={specialNoteFor(item.id)} onAdd={addToCart} onChange={changeQuantity} onNoteChange={changeSpecialNote} onDetails={setSelectedItem} />
             ))}
           </div>
           {isLoadingMenu && <div className="py-12 text-center text-gray-500">Loading menu...</div>}
@@ -401,7 +476,7 @@ export default function Home() {
               <h2 className="text-xl font-bold">Your Order</h2>
               <button aria-label="Close cart" onClick={() => setCartOpen(false)} className="p-2 rounded-full bg-white border border-gray-200 text-gray-600"><X size={19} /></button>
             </div>
-            <CartPanel cart={cart} activeOrderItems={activeOrderItems} subtotal={subtotal} deliveryFee={deliveryFee} total={total} blockReason={cartBlock} deliveryOffer={deliveryOffer} onChange={changeQuantity} onCheckout={() => {setCartOpen(false); setScreen("checkout");}} />
+            <CartPanel cart={cart} activeOrderItems={activeOrderItems} subtotal={subtotal} deliveryFee={deliveryFee} total={total} blockReason={cartBlock} deliveryOffer={deliveryOffer} onChange={changeQuantity} onNoteChange={changeSpecialNote} onCheckout={() => {setCartOpen(false); setScreen("checkout");}} />
           </motion.div>
         </div>}
       </AnimatePresence>
@@ -497,7 +572,7 @@ function Welcome({ store, setOrderType }: { store: PublicSettings | null; setOrd
   </main> 
 }
 
-function ProductCard({ item, quantity, onAdd, onChange, onDetails }: { item: MenuItem; quantity: number; onAdd: (item: MenuItem, amount?: number) => void; onChange: (id: string, delta: number) => void; onDetails: (item: MenuItem) => void; }) { 
+function ProductCard({ item, quantity, specialNote, onAdd, onChange, onNoteChange, onDetails }: { item: MenuItem; quantity: number; specialNote: string; onAdd: (item: MenuItem, amount?: number) => void; onChange: (id: string, delta: number) => void; onNoteChange: (id: string, note: string) => void; onDetails: (item: MenuItem) => void; }) {
   const isVeg = item.vegetarian === true;
 
   return (
@@ -590,6 +665,21 @@ function ProductCard({ item, quantity, onAdd, onChange, onDetails }: { item: Men
           )}
         </div>
       </div>
+
+      {quantity > 0 && (
+        <div className="mt-2.5" onClick={(event) => event.stopPropagation()}>
+          <label className="sr-only" htmlFor={`special-note-${item.id}`}>Special instructions for {item.name}</label>
+          <textarea
+            id={`special-note-${item.id}`}
+            value={specialNote}
+            onChange={(event) => onNoteChange(item.id, event.target.value)}
+            maxLength={300}
+            rows={2}
+            placeholder="Special note..."
+            className="w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-[11px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+          />
+        </div>
+      )}
     </article>
   );
 }
@@ -618,7 +708,7 @@ function FreeDeliveryProgress({ offer, className = "" }: { offer: DeliveryOffer;
   );
 }
 
-function CartPanel({ cart, activeOrderItems, subtotal, deliveryFee, total, blockReason, deliveryOffer, onChange, onCheckout }: { cart: CartItem[]; activeOrderItems?: any[]; subtotal: number; deliveryFee: number; total: number; blockReason: string | null; deliveryOffer: DeliveryOffer | null; onChange: (id: string, delta: number) => void; onCheckout: () => void }) {
+function CartPanel({ cart, activeOrderItems, subtotal, deliveryFee, total, blockReason, deliveryOffer, onChange, onNoteChange, onCheckout }: { cart: CartItem[]; activeOrderItems?: any[]; subtotal: number; deliveryFee: number; total: number; blockReason: string | null; deliveryOffer: DeliveryOffer | null; onChange: (id: string, delta: number) => void; onNoteChange: (id: string, note: string) => void; onCheckout: () => void }) {
   const freeDeliveryApplied = Boolean(deliveryOffer) && deliveryFee === 0 && cart.length > 0;
   return <div className="bg-white rounded-[20px] p-5">
     {cart.length === 0 && (!activeOrderItems || activeOrderItems.length === 0) ? (
@@ -669,6 +759,16 @@ function CartPanel({ cart, activeOrderItems, subtotal, deliveryFee, total, block
                   <strong className="text-[15px] text-gray-800 leading-tight">{line.item.name}</strong>
                 </div>
                 <div className="text-gray-600 text-[13px] font-medium mt-1 ml-5">{money(line.item.price)}</div>
+                <textarea
+                  value={line.specialNote ?? ""}
+                  onChange={(event) => onNoteChange(line.item.id, event.target.value)}
+                  onClick={(event) => event.stopPropagation()}
+                  maxLength={300}
+                  rows={2}
+                  placeholder="Special note..."
+                  aria-label={`Special instructions for ${line.item.name}`}
+                  className="mt-2 w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-[12px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                />
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 <div className="flex items-center justify-between bg-[#fff0f1] text-[#ef4f5f] border border-[#ffc9ce] rounded-[8px] shrink-0 w-20 h-8">
@@ -1239,6 +1339,93 @@ function Checkout({
   </main> 
 }
 
+
+function TableOrderPage({ table, orderNumber, status, items, total, onAddMore }: { table: string; orderNumber: string; status: string | null; items: any[]; total: number; onAddMore: () => void }) {
+  const isClosed = status === "closed";
+  const statusText = isClosed
+    ? "This table order is closed."
+    : status === "preparing"
+      ? "The kitchen is preparing your order."
+      : status === "ready_for_pickup"
+        ? "Your order is ready. Please ask restaurant staff."
+        : "Your order is with the restaurant and awaiting confirmation.";
+  const rounds = Array.from(new Set(items.map((item) => Number(item.round) || 1))).sort((a, b) => a - b);
+
+  return (
+    <main className="min-h-screen bg-[#F5F7FA] px-4 py-6 sm:py-10">
+      <section className="mx-auto w-full max-w-xl overflow-hidden rounded-[24px] border border-gray-100 bg-white shadow-xl">
+        <div className="bg-gradient-to-br from-emerald-600 to-green-700 px-6 py-7 text-white sm:px-8">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-3xl" aria-hidden="true">
+            {isClosed ? "✓" : "🍳"}
+          </div>
+          <h1 className="text-[27px] font-black leading-tight">{isClosed ? "Table order closed" : "Sent to kitchen"}</h1>
+          <p className="mt-2 text-[14px] font-medium leading-relaxed text-white/85">{statusText}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12px] font-extrabold">Table {table}</span>
+            {orderNumber && <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12px] font-extrabold">Order {orderNumber}</span>}
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-7">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[18px] font-extrabold text-gray-900">Items ordered</h2>
+              <p className="mt-0.5 text-[12px] font-medium text-gray-500">This list refreshes while the table is open.</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-[12px] font-extrabold text-gray-700">
+              {items.reduce((count, item) => count + (Number(item.quantity) || 0), 0)} items
+            </span>
+          </div>
+
+          {items.length ? (
+            <div className="space-y-4">
+              {rounds.map((round) => {
+                const roundItems = items.filter((item) => (Number(item.round) || 1) === round);
+                return (
+                  <div key={round} className="overflow-hidden rounded-2xl border border-gray-200">
+                    {rounds.length > 1 && <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-gray-500">Round {round}</div>}
+                    <div className="divide-y divide-gray-100">
+                      {roundItems.map((item, index) => {
+                        const name = item.item_name || item.name || "Menu item";
+                        const note = typeof item.notes === "string" ? item.notes : typeof item.special_note === "string" ? item.special_note : "";
+                        const quantity = Number(item.quantity) || 1;
+                        const price = Number(item.unit_price ?? item.price ?? 0);
+                        return (
+                          <div key={`${item.menu_item_id || name}-${index}`} className="px-4 py-3.5">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <p className="font-bold text-gray-900">{quantity} × {name}</p>
+                                {note.trim() && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-900">Note: {note}</p>}
+                              </div>
+                              <span className="shrink-0 text-[13px] font-extrabold text-gray-800">{money(price * quantity)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-200 px-4 py-7 text-center text-[13px] font-semibold text-gray-500">No items are available for this table order.</div>
+          )}
+
+          <div className="mt-5 flex items-center justify-between border-t border-dashed border-gray-200 pt-4">
+            <span className="text-[13px] font-bold uppercase tracking-wide text-gray-500">Current total</span>
+            <strong className="text-[24px] font-black text-gray-900">{money(total)}</strong>
+          </div>
+          <p className="mt-3 text-center text-[12px] font-medium leading-relaxed text-gray-500">
+            The final bill will be sent to the WhatsApp number given with the order when staff closes the table.
+          </p>
+          <button type="button" onClick={onAddMore} className="mt-5 w-full rounded-xl bg-[#E23744] py-3.5 text-[14px] font-extrabold text-white shadow-md shadow-red-500/20 transition hover:bg-[#CC2E3A] active:scale-[0.99]">
+            {isClosed ? "Start a new order at this table" : "+ Add more items to the table"}
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
 
 function Confirmation({ orderNumber, orderType, table, cart, total, onContinue }: { orderNumber: string; orderType: OrderType; table: string; cart: CartItem[]; total: number; onContinue: () => void }) { 
   const [cancelling, setCancelling] = useState(false);

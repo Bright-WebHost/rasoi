@@ -34,25 +34,14 @@ type CartItem = {
   variant_name: string | null;
 };
 
-const CATEGORY_COLORS = [
-  { match: ["ice cream", "cone", "family pack"], bg: "bg-[#F0F6FF]", border: "border-[#D6E4F9]", accent: "bg-[#3B82F6]", hover: "hover:border-[#3B82F6]/40" },
-  { match: ["sundae"], bg: "bg-[#E6F9F8]", border: "border-[#C5EFEA]", accent: "bg-[#14B8A6]", hover: "hover:border-[#14B8A6]/40" },
-  { match: ["juice"], bg: "bg-[#F0FDF4]", border: "border-[#BBF7D0]", accent: "bg-[#22C55E]", hover: "hover:border-[#22C55E]/40" },
-  { match: ["milk shake", "milkshake"], bg: "bg-[#FEF1F2]", border: "border-[#FEE2E2]", accent: "bg-[#F43F5E]", hover: "hover:border-[#F43F5E]/40" },
-  { match: ["crepe"], bg: "bg-[#FFFbeb]", border: "border-[#FEF3C7]", accent: "bg-[#F59E0B]", hover: "hover:border-[#F59E0B]/40" },
-  { match: ["cocktail"], bg: "bg-[#F5F3FF]", border: "border-[#EDE9FE]", accent: "bg-[#8B5CF6]", hover: "hover:border-[#8B5CF6]/40" },
-];
+const DEFAULT_COLOR = {
+  bg: "bg-white",
+  border: "border-[#E3E8EF]",
+  accent: "bg-[#E23744]",
+  hover: "hover:border-[#E23744]/40",
+};
 
-const DEFAULT_COLOR = { bg: "bg-[#F8FAFB]", border: "border-[#EAF0F6]", accent: "bg-[#8799AF]", hover: "hover:border-[#C9D4E0]" };
-
-function getCategoryColor(category: string) {
-  if (!category || category === "All") return DEFAULT_COLOR;
-  const normalized = category.toLowerCase().trim();
-  for (const group of CATEGORY_COLORS) {
-    if (group.match.some(m => normalized.includes(m))) {
-      return group;
-    }
-  }
+function getCategoryColor(_category: string) {
   return DEFAULT_COLOR;
 }
 
@@ -507,9 +496,9 @@ export default function PosBoard() {
                     key={item.id}
                     disabled={!item.available}
                     onClick={() => handleProductClick(item)}
-                    className={`group relative flex min-h-[210px] flex-col text-left rounded-[16px] border p-3 transition-all duration-300 h-full ${
+                    className={`group relative flex min-h-[210px] flex-col text-left rounded-[14px] border bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all duration-200 h-full ${
                       item.available 
-                        ? `${colors.bg} ${colors.border} ${colors.hover} hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-1 cursor-pointer` 
+                        ? `${colors.border} ${colors.hover} hover:shadow-[0_5px_16px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 cursor-pointer`
                         : "border-[#EAF0F6] bg-[#F8FAFB] opacity-60 cursor-not-allowed grayscale"
                     }`}
                   >
@@ -528,11 +517,11 @@ export default function PosBoard() {
                       <img src={item.image_url} alt={item.item_name} className="w-full h-full object-cover" />
                     </div>
                   ) : null}
-                  <h3 className="text-[14px] font-black text-[#0A1017] leading-[1.25] mb-1 line-clamp-2">
+                  <h3 className="text-[14px] font-semibold text-[#17202B] leading-[1.3] mb-1 line-clamp-2">
                     {item.item_name}
                   </h3>
                   <div className="mt-auto pt-2 flex items-center justify-between w-full border-t border-dashed border-[#EAF0F6]">
-                    <span className="text-[15px] font-black text-[#E23744]">
+                    <span className="text-[15px] font-semibold text-[#C93440]">
                       ₹{item.price}
                     </span>
                     {!item.available && (

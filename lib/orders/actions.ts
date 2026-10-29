@@ -12,6 +12,11 @@ export async function updateOrderInDb(orderId: string, updates: any) {
   try {
     await requireStaff();
     const adminClient = createAdminClient();
+    const { data: currentOrder } = await adminClient
+      .from("orders")
+      .select("order_type, table_number")
+      .eq("id", orderId)
+      .maybeSingle();
 
     // Restoring a cancelled order needs the undo passcode → reopenCancelledOrder().
     if (updates && typeof updates.status === "string" && updates.status !== "cancelled") {
@@ -21,14 +26,37 @@ export async function updateOrderInDb(orderId: string, updates: any) {
       }
     }
 
+    const orderUpdates = updates?.status === "delivered" && currentOrder?.order_type === "dine-in"
+      ? { ...updates, is_collected: true }
+      : updates;
     const { error } = await adminClient
       .from("orders")
-      .update(updates)
+      .update(orderUpdates)
       .eq("id", orderId);
 
     if (error) {
       console.error("[updateOrderInDb] Error:", error.message);
       return { success: false, error: error.message };
+    }
+
+    if (updates?.status === "delivered" && currentOrder?.order_type === "dine-in") {
+      if (currentOrder.table_number) {
+        const { error: tableError } = await adminClient
+          .from("restaurant_tables")
+          .update({ is_active: false, current_order_id: null })
+          .eq("table_number", currentOrder.table_number);
+        if (tableError) console.error("[updateOrderInDb] Could not release closed dine-in table:", tableError.message);
+      }
+
+      try {
+        const { sendClosedTableBill } = await import("@/lib/orders/table-bill");
+        const billResult = await sendClosedTableBill(orderId);
+        if (!billResult.sent) {
+          console.error("[updateOrderInDb] Dine-in order closed, but WhatsApp bill was not sent:", billResult.error);
+        }
+      } catch (billError) {
+        console.error("[updateOrderInDb] Dine-in order closed, but WhatsApp bill sending failed:", billError);
+      }
     }
 
     return { success: true };

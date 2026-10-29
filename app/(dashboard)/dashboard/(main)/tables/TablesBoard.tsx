@@ -6,6 +6,7 @@ import {
   addTable,
   deleteTable,
   clearTable,
+  resendClosedTableBill,
   RestaurantTable,
   TablesOverviewMetrics,
   moveTable,
@@ -34,6 +35,7 @@ export default function TablesBoard() {
   const [historyModalTable, setHistoryModalTable] = useState<string | null>(null);
   const [tableHistory, setTableHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [sendingBillOrderId, setSendingBillOrderId] = useState<string | null>(null);
 
   const [moveModalOrder, setMoveModalOrder] = useState<{
     orderId: string;
@@ -138,6 +140,30 @@ export default function TablesBoard() {
       alert(result.error || "Failed to clear table");
     } else {
       loadTables();
+      if (result.whatsappBillSent === false) {
+        alert(`Table closed, but the WhatsApp bill was not sent: ${result.whatsappBillError || "Please retry it from Table History."}`);
+      }
+    }
+  };
+
+  const handleResendBill = async (orderId: string) => {
+    setSendingBillOrderId(orderId);
+    try {
+      const result = await resendClosedTableBill(orderId);
+      if (!result.success || !result.sent) {
+        alert(result.error || "WhatsApp bill could not be sent.");
+        return;
+      }
+
+      if (historyModalTable) {
+        const { fetchTableHistory } = await import("./actions");
+        const refreshed = await fetchTableHistory(historyModalTable);
+        if (refreshed.success && refreshed.history) setTableHistory(refreshed.history);
+      }
+    } catch {
+      alert("WhatsApp bill could not be sent. Check the provider configuration and retry.");
+    } finally {
+      setSendingBillOrderId(null);
     }
   };
 
@@ -417,7 +443,7 @@ export default function TablesBoard() {
                                   {rndItems.map((item: any, idx: number) => (
                                     <div
                                       key={idx}
-                                      className="flex justify-between items-center text-[12px] text-[#334155] font-bold"
+                                      className="flex flex-wrap justify-between items-center text-[12px] text-[#334155] font-bold"
                                     >
                                       <span className="truncate mr-2">
                                         {item.item_name} {item.variant_name ? `(${item.variant_name})` : ""}{" "}
@@ -426,6 +452,12 @@ export default function TablesBoard() {
                                       <span className="text-[#0F172A] shrink-0">
                                         ₹{(item.price || item.unit_price || 0) * (item.quantity || 1)}
                                       </span>
+                                      {typeof item.notes === "string" && item.notes.trim() && (
+                                        <div className="mt-1.5 w-full rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-950">
+                                          <span className="font-extrabold uppercase tracking-wide">Special instructions</span>
+                                          <p className="mt-0.5 whitespace-pre-wrap">{item.notes}</p>
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -806,6 +838,29 @@ export default function TablesBoard() {
                           ? `Guest: ${ord.customer_name} (${ord.customer_phone})`
                           : "Dine-in Customer"}
                       </div>
+                      {ord.order_type === "dine-in" && ord.status === "delivered" && (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          {ord.whatsapp_bill_sent_at ? (
+                            <span className="text-[11px] font-bold text-emerald-700">
+                              WhatsApp bill submitted {new Date(ord.whatsapp_bill_sent_at).toLocaleString("en-IN")}
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-[11px] font-semibold text-amber-800">
+                                {ord.whatsapp_bill_error || "WhatsApp bill has not been sent yet."}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleResendBill(ord.id)}
+                                disabled={sendingBillOrderId === ord.id}
+                                className="rounded-lg bg-[#25D366] px-3 py-2 text-[11px] font-extrabold text-white transition hover:bg-[#1FA855] disabled:opacity-60"
+                              >
+                                {sendingBillOrderId === ord.id ? "Sending…" : "Send bill on WhatsApp"}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -132,6 +132,7 @@ function buildItemList(order: DashboardOrder) {
       is_new_addition: item.is_new_addition || false,
       old_quantity: item.old_quantity || 0,
       variant_name: item.variant_name || "",
+      notes: typeof item.notes === "string" ? item.notes : typeof item.special_note === "string" ? item.special_note : "",
       round: item.round || 1
     }));
   }
@@ -145,12 +146,14 @@ function buildItemList(order: DashboardOrder) {
     is_new_addition: false,
     old_quantity: 0,
     variant_name: "",
+    notes: "",
     round: 1
   }] : [];
 }
 
-function canTransitionStatus(current: OrderStatus, next: OrderStatus) {
+function canTransitionStatus(current: OrderStatus, next: OrderStatus, allowDineInCompletion = false) {
   if (current === next) return true;
+  if (allowDineInCompletion && next === "delivered") return true;
   return (STATUS_TRANSITIONS[current] ?? []).includes(next);
 }
 
@@ -355,6 +358,12 @@ function OrderDetails({ order, onClose, now, onStatusChange }: { order: Dashboar
                               <span className="text-[11px] font-extrabold text-[#D97706] mt-1 uppercase tracking-widest bg-[#FEF3C7] px-2 py-0.5 rounded-md inline-block w-fit">
                                 {item.old_quantity > 0 ? `+${item.quantity - item.old_quantity} Added` : 'New Item'}
                               </span>
+                            )}
+                            {item.notes.trim() && (
+                              <div className="mt-2 max-w-xl rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-950">
+                                <span className="block text-[10px] font-extrabold uppercase tracking-wider">Special instructions</span>
+                                <p className="mt-0.5 whitespace-pre-wrap font-semibold">{item.notes}</p>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -604,11 +613,12 @@ function UndoCancelButton({ order, className, onRestored }: { order: DashboardOr
   );
 }
 
-function OrderCard({ order, onOpen, onStatusChange, now }: { order: DashboardOrder; onOpen: () => void; onStatusChange: (order: DashboardOrder, nextStatus: OrderStatus, reason?: string) => void; now: number }) {
+function OrderCard({ order, onOpen, onStatusChange, now, isDineInSection = false }: { order: DashboardOrder; onOpen: () => void; onStatusChange: (order: DashboardOrder, nextStatus: OrderStatus, reason?: string) => void; now: number; isDineInSection?: boolean }) {
   const { hasPerm } = useStaff();
   const { refreshOrders } = useOrderManager();
   const items = buildItemList(order);
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
+  const itemsWithNotes = items.filter((item) => item.notes.trim());
   const slideAction = getSlideAction(order, hasPerm);
   const countdown = formatCountdown(order, now);
   const isAgeWarning = getAgeMinutes(order) >= 15;
@@ -670,14 +680,44 @@ function OrderCard({ order, onOpen, onStatusChange, now }: { order: DashboardOrd
         <div className="flex flex-col items-end">
           <span className="text-[14px] font-extrabold text-[var(--ink)]">{money(order.total)}</span>
           <span className={`text-[11px] font-bold ${countdown.isOverdue ? "text-[var(--danger)]" : isAgeWarning ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>
-            {countdown.label}
+            {isDineInSection ? getAgeLabel(order) : countdown.label}
           </span>
         </div>
       </div>
 
-      <div className="mt-2.5 text-[12px] font-medium leading-tight text-[var(--ink)] line-clamp-2">
+      <div className={`mt-2.5 text-[12px] font-medium leading-tight text-[var(--ink)] ${isDineInSection ? "hidden" : "line-clamp-2"}`}>
         {items.length > 0 ? items.map((item) => `${item.quantity}× ${item.name}`).join(", ") : order.items || "No items"}
       </div>
+
+      {!isDineInSection && itemsWithNotes.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {itemsWithNotes.map((item) => (
+            <div key={`note-${item.id}`} className="rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-950">
+              <span className="font-extrabold uppercase tracking-wide">Special note · {item.name}</span>
+              <p className="mt-0.5 whitespace-pre-wrap font-semibold">{item.notes}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isDineInSection && (
+        <div className="mt-2.5 space-y-1 text-[12px] font-medium leading-tight text-[var(--ink)]">
+          {items.length > 0 ? items.map((item) => (
+            <div key={item.id} className="space-y-1.5">
+              <div className="flex items-start justify-between gap-3">
+              <span className="min-w-0">{item.name} <span className="text-[var(--muted)]">×{item.quantity}</span></span>
+              <span className="shrink-0 font-semibold">{money(Number(item.unit_price || 0) * item.quantity)}</span>
+              </div>
+              {item.notes.trim() && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-950">
+                  <span className="font-extrabold uppercase tracking-wide">Special note</span>
+                  <p className="mt-0.5 whitespace-pre-wrap">{item.notes}</p>
+                </div>
+              )}
+            </div>
+          )) : <span>{order.items || "No items"}</span>}
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span className="rounded bg-[#F8FAFB] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] border border-[#E6E9EE]">
@@ -723,7 +763,18 @@ function OrderCard({ order, onOpen, onStatusChange, now }: { order: DashboardOrd
       </div>
 
       <div className="mt-3" onClick={(e) => e.stopPropagation()}>
-        {slideAction && (
+        {isDineInSection && order.status !== "delivered" && order.status !== "cancelled" && hasPerm("mark_delivered") ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onStatusChange(order, "delivered");
+            }}
+            className="flex h-[40px] w-full items-center justify-center gap-2 rounded-[10px] border border-[#B7E4C7] bg-[#35B558] text-[13px] font-black text-white shadow-sm transition-colors hover:bg-[#2EA34F]"
+          >
+            <span aria-hidden="true">✓</span> Mark done
+          </button>
+        ) : slideAction && (
           <SlideAction
             label={slideAction.label}
             accentColor={slideAction.accent}
@@ -837,7 +888,7 @@ export default function OrdersBoard() {
   }, []);
 
   const handleStatusChange = useCallback(async (order: DashboardOrder, nextStatus: OrderStatus, reason?: string, rider?: { id: string; name: string; phone: string }) => {
-    if (!canTransitionStatus(order.status, nextStatus)) {
+    if (!canTransitionStatus(order.status, nextStatus, order.order_type === "dine-in" && nextStatus === "delivered")) {
       setStatusMessage(`Invalid update: ${statusLabels[order.status]} → ${statusLabels[nextStatus]}.`);
       return;
     }
@@ -850,7 +901,9 @@ export default function OrdersBoard() {
 
     try {
       await updateOrderStatus(order, nextStatus, reason, rider);
-      setStatusMessage(`Order ${order.order_number} updated to ${statusLabels[nextStatus]}.`);
+      setStatusMessage(order.order_type === "dine-in" && nextStatus === "delivered"
+        ? `Dine-in order ${order.order_number} marked done.`
+        : `Order ${order.order_number} updated to ${statusLabels[nextStatus]}.`);
       setSelectedOrder(null);
       setAssignRiderOrder(null);
     } catch {
@@ -865,6 +918,10 @@ export default function OrdersBoard() {
   }, [orders, range]);
 
   const visibleOrders = filteredOrders.filter((order) => order.status !== "cancelled");
+  const activeDineInOrders = orders
+    .filter((order) => order.order_type === "dine-in" && order.status !== "delivered" && order.status !== "cancelled")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const boardOrders = visibleOrders.filter((order) => order.order_type !== "dine-in" || order.status === "delivered");
   // Shown regardless of the date filter until someone marks them paid.
   const unpaidOrders = orders.filter(isUnpaid);
   const cancelledOrders = filteredOrders.filter((order) => order.status === "cancelled");
@@ -914,6 +971,51 @@ export default function OrdersBoard() {
         </div>
       )}
 
+      <section aria-labelledby="dine-in-orders-heading" className="rounded-[20px] border border-[#EAF0F6] bg-white p-4 shadow-sm md:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#F3F6F9] text-xl" aria-hidden="true">🍽️</span>
+            <div>
+              <h2 id="dine-in-orders-heading" className="text-[18px] font-extrabold tracking-tight text-[#0A1017]">Dine-in</h2>
+              <p className="text-[12px] font-semibold text-[#8799AF]">Open table orders stay here until marked done.</p>
+            </div>
+          </div>
+          <span className="grid h-8 min-w-8 place-items-center rounded-full bg-[#0A1017] px-2.5 text-[13px] font-black text-white" aria-label={`${activeDineInOrders.length} active dine-in orders`}>
+            {activeDineInOrders.length}
+          </span>
+        </div>
+
+        {activeDineInOrders.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            <AnimatePresence mode="popLayout">
+              {activeDineInOrders.map((order) => (
+                <motion.div
+                  key={order.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.16 }}
+                >
+                  <OrderCard
+                    order={order}
+                    onOpen={() => setSelectedOrder(order)}
+                    onStatusChange={handleStatusChange}
+                    now={now}
+                    isDineInSection
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <div className="rounded-[14px] border border-dashed border-[#D7E0E9] bg-[#F8FAFB] px-4 py-7 text-center">
+            <p className="text-[14px] font-bold text-[#6B7A90]">No active dine-in orders</p>
+            <p className="mt-1 text-[12px] font-medium text-[#8799AF]">New table orders will appear in this section.</p>
+          </div>
+        )}
+      </section>
+
       {unpaidOrders.length > 0 && (
         <div className="rounded-xl border border-[#F5C2C6] bg-[#FDE8E8] px-4 py-3 shadow-[0_4px_12px_rgba(226,55,68,0.1)]">
           <p className="text-sm font-extrabold text-[#C0392B]">
@@ -937,7 +1039,7 @@ export default function OrdersBoard() {
 
       <div className="flex xl:grid xl:grid-cols-3 gap-4 overflow-x-auto pb-6 snap-x snap-mandatory">
         {BOARD_COLUMNS.map((column) => {
-          const columnOrders = visibleOrders.filter((order) => getBoardColumn(order) === column.key);
+          const columnOrders = boardOrders.filter((order) => getBoardColumn(order) === column.key);
           return (
             <div key={column.key} className={`min-w-[85vw] md:min-w-[320px] xl:min-w-0 snap-center rounded-[20px] ${column.key === "preparing" ? "bg-[#EAF3FF]" : column.key === "ready" ? "bg-[#F2EEFF]" : "bg-[#EAF8EF]"} p-4 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]`}>
               <div className="mb-4 flex items-center justify-between gap-2 px-1">

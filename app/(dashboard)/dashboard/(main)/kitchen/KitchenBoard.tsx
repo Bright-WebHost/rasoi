@@ -146,7 +146,17 @@ export default function KitchenBoard() {
                         ${isUrgent ? 'bg-[#E23744] text-white' : isNew ? 'bg-[#25D366] text-[#0E2018]' : 'bg-[#233142] text-white'}`}>
                         {item.quantity}
                       </span>
-                      <span className="font-bold text-xl leading-tight text-white/90 pt-1 tracking-tight">{item.item_name}</span>
+                      <div className="min-w-0 flex-1">
+                        <span className="block font-bold text-xl leading-tight text-white/90 pt-1 tracking-tight">{item.item_name}</span>
+                        {(typeof item.notes === "string" ? item.notes : typeof item.special_note === "string" ? item.special_note : "").trim() && (
+                          <div className="mt-2 rounded-lg border border-amber-400 bg-amber-300/15 px-3 py-2 text-amber-100">
+                            <span className="block text-[10px] font-black uppercase tracking-widest text-amber-300">Special instructions</span>
+                            <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-snug">
+                              {typeof item.notes === "string" ? item.notes : item.special_note}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

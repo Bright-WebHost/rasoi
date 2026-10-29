@@ -38,7 +38,6 @@ export async function notifyStatusWebhook(order_number: string, status: string, 
     return { success: false, error: err.message };
   }
 }
-
 export async function notifyOrderCreatedWebhook(payload: any) {
   try {
     const notifyUrl = process.env.N8N_ORDER_CREATED_WEBHOOK_URL?.trim();

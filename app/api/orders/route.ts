@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       total: result.total,
       delivery_fee: result.deliveryFee,
       order: {
+        id: result.orderId,
         order_number: result.orderNumber,
         order_type: result.orderType,
         order_status: result.status,

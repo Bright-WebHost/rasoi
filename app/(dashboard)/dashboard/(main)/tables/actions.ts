@@ -217,40 +217,69 @@ export async function clearTable(id: string) {
       }
     }
 
-    // 2. Update table
-    const { error } = await adminClient
-      .from("restaurant_tables")
-      .update({ 
-        is_active: false,
-        current_order_id: null
-      })
-      .eq("id", id);
-      
-    if (error) throw error;
-    
-    // 3. Mark order as delivered & notify customer
+    let shouldSendBill = false;
     if (orderIdToClear) {
-      const { data: order } = await adminClient
+      const { data: currentOrder, error: orderReadError } = await adminClient
         .from("orders")
-        .update({ 
-          status: 'delivered',
-          is_collected: true,
-          updated_at: new Date().toISOString()
-        })
+        .select("id, order_type, status")
         .eq("id", orderIdToClear)
-        .select("order_number")
-        .single();
-        
-      if (order?.order_number) {
-        const { notifyStatusWebhook } = await import("@/lib/server/notify");
-        await notifyStatusWebhook(order.order_number, 'delivered');
+        .maybeSingle();
+
+      if (orderReadError) throw orderReadError;
+      if (currentOrder && currentOrder.order_type === "dine-in") {
+        if (["new", "preparing", "ready_for_pickup"].includes(currentOrder.status)) {
+          const { error: closeOrderError } = await adminClient
+            .from("orders")
+            .update({ status: "delivered", is_collected: true, updated_at: new Date().toISOString() })
+            .eq("id", orderIdToClear);
+          if (closeOrderError) throw closeOrderError;
+          shouldSendBill = true;
+        } else if (currentOrder.status === "delivered") {
+          // Recover a previous close if the bill message failed on the first attempt.
+          shouldSendBill = true;
+        }
       }
     }
+
+    // Close the table only after the order status update has succeeded.
+    const { error: tableUpdateError } = await adminClient
+      .from("restaurant_tables")
+      .update({ is_active: false, current_order_id: null })
+      .eq("id", id);
+    if (tableUpdateError) throw tableUpdateError;
+
+    if (shouldSendBill && orderIdToClear) {
+      let billResult: { sent: boolean; error?: string };
+      try {
+        const { sendClosedTableBill } = await import("@/lib/orders/table-bill");
+        billResult = await sendClosedTableBill(orderIdToClear);
+      } catch (billError) {
+        console.error("[clearTable] Table closed, but WhatsApp bill sending failed:", billError);
+        billResult = { sent: false, error: "WhatsApp bill sending failed." };
+      }
+      return {
+        success: true,
+        whatsappBillSent: billResult.sent,
+        whatsappBillError: billResult.sent ? null : billResult.error || "WhatsApp bill could not be sent.",
+      };
+    }
     
-    return { success: true };
+    return { success: true, whatsappBillSent: null, whatsappBillError: null };
   } catch (error: any) {
     console.error("[clearTable] Error:", error);
     return { success: false, error: "Failed to clear table" };
+  }
+}
+
+export async function resendClosedTableBill(orderId: string) {
+  await authorize("tables");
+
+  try {
+    const { sendClosedTableBill } = await import("@/lib/orders/table-bill");
+    return await sendClosedTableBill(orderId);
+  } catch (error) {
+    console.error("[resendClosedTableBill] Error:", error);
+    return { success: false, sent: false, error: "Could not send the WhatsApp bill." };
   }
 }
 
@@ -262,7 +291,7 @@ export async function fetchTableHistory(tableNumber: string) {
     
     const { data, error } = await adminClient
       .from("orders")
-      .select("id, order_number, total, status, created_at, items_json, customer_name, customer_phone")
+      .select("id, order_number, total, status, order_type, created_at, items_json, customer_name, customer_phone, whatsapp_bill_sent_at, whatsapp_bill_error")
       .eq("table_number", tableNumber)
       .in("status", ["delivered", "cancelled"])
       .order("created_at", { ascending: false })

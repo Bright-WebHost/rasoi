@@ -75,7 +75,7 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
   const deliveryAddress = str(input.deliveryAddress)
   if (orderType === 'delivery' && !deliveryAddress) return fail(400, 'Delivery address is required for delivery orders')
 
-  const validatedItems: Array<{ menu_item_id: string; variant_id: string | null; quantity: number }> = []
+  const validatedItems: Array<{ menu_item_id: string; variant_id: string | null; quantity: number; special_note: string | null }> = []
   for (const item of cartItems) {
     if (!item || typeof item !== 'object') return fail(400, 'Invalid cart item')
     const record = item as Record<string, unknown>
@@ -84,7 +84,9 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
     const quantity = typeof record.quantity === 'number' ? record.quantity : Number(record.quantity)
     if (!menuItemId) return fail(400, 'Each cart item requires a menu_item_id.')
     if (!Number.isInteger(quantity) || quantity <= 0 || quantity > MAX_QUANTITY_PER_ITEM) return fail(400, 'Invalid item quantity')
-    validatedItems.push({ menu_item_id: menuItemId, variant_id: variantId, quantity })
+    const specialNote = typeof record.special_note === 'string' ? record.special_note.trim() : ''
+    if (specialNote.length > 300) return fail(400, 'Special instructions must be 300 characters or fewer.')
+    validatedItems.push({ menu_item_id: menuItemId, variant_id: variantId, quantity, special_note: specialNote || null })
   }
 
   const { data: liveMenuItems, error: menuError } = await adminClient
@@ -163,7 +165,7 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
     tableNumber = tableRow.table_number
   }
 
-  const { data: rpcResult, error: createError } = await adminClient.rpc('create_customer_order_atomic', {
+  const { data: rpcResult, error: createError } = await adminClient.rpc('create_customer_order_with_notes_atomic', {
     p_customer_id: input.customerId || null,
     p_order_type: orderType,
     p_customer_name: resolvedName,
@@ -183,6 +185,9 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
   if (createError || !rpcResult || typeof rpcResult !== 'object') {
     console.error('[createCustomerOrder] Atomic order RPC failed:', createError?.message || 'No order returned')
     const message = createError?.message || 'Failed to create order'
+    if (createError?.code === 'PGRST202' || message.includes('Could not find the function')) {
+      return fail(503, 'Order notes are not enabled on the database yet. Apply the latest Supabase migration and try again.')
+    }
     const customerMessage = /Orders are paused|restaurant is closed|not available|Pincode not serviceable|Delivery address|required|Table unavailable|unavailable|minimum|Below minimum/i.test(message)
     return fail(customerMessage ? 400 : 500, customerMessage ? message : 'Failed to create order', customerMessage ? 'ORDER_RULES' : undefined)
   }

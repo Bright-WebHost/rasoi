@@ -30,7 +30,7 @@ export interface DashboardOrder {
   items: string;
   total: number;
   status: OrderStatus;
-  order_type: "delivery" | "pickup" | "pos" | "takeaway";
+  order_type: "delivery" | "pickup" | "pos" | "takeaway" | "dine-in";
   source: string | null;
   address: string | null;
   landmark: string | null;
@@ -48,7 +48,7 @@ export interface DashboardOrder {
   cancel_requested_at: string | null;
   created_at: string;
   updated_at: string;
-  items_json: Array<{ menu_item_id: string | null; item_name: string; quantity: number; unit_price: number }> | null;
+  items_json: Array<{ menu_item_id: string | null; item_name: string; quantity: number; unit_price: number; notes?: string | null }> | null;
   rider_id?: string | null;
   rider_name?: string | null;
   rider_phone?: string | null;

@@ -42,6 +42,7 @@ function buildItemList(order: DashboardOrder) {
       unit_price: item.unit_price ?? item.price,
       is_new_addition: item.is_new_addition,
       old_quantity: item.old_quantity,
+      notes: typeof item.notes === "string" ? item.notes : typeof item.special_note === "string" ? item.special_note : "",
       round: item.round,
     }));
   }
@@ -209,6 +210,12 @@ export function GlobalNewOrderPopup() {
                           ? `+${item.quantity - item.old_quantity} Added`
                           : "New Item"}
                       </span>
+                    )}
+                    {item.notes?.trim() && (
+                      <div className="mt-2 max-w-lg rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-950">
+                        <span className="block text-[10px] font-extrabold uppercase tracking-wider">Special instructions</span>
+                        <p className="mt-0.5 whitespace-pre-wrap font-semibold">{item.notes}</p>
+                      </div>
                     )}
                   </div>
                 </div>

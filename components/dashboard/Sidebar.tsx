@@ -7,6 +7,23 @@ import { createClient } from "@/lib/supabase/client";
 import { useOrderManager } from "@/app/(dashboard)/dashboard/OrderManagerProvider";
 import { useStaff } from "@/components/providers/StaffProvider";
 import { canAccessPage, type PageRoute } from "@/lib/auth/permissions";
+import {
+  BarChart3,
+  Bike,
+  BookOpen,
+  ChefHat,
+  ClipboardList,
+  LogOut,
+  Megaphone,
+  MessageCircle,
+  Monitor,
+  RefreshCw,
+  Settings,
+  Users,
+  Utensils,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 
 export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { restaurantName?: string; logoUrl?: string }) {
   // Remember which logo URL failed to load, so a newly uploaded logo gets a fresh try.
@@ -25,13 +42,13 @@ export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { re
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 z-50 md:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-slate-950/55 z-50 md:hidden backdrop-blur-sm transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Main Sidebar (Desktop Sticky + Mobile Drawer) */}
-      <aside className={`print:hidden bg-[#0A1017] text-white flex-col border-r border-[#1C2633] shrink-0 z-50
+      <aside className={`print:hidden bg-[#111827] text-white flex-col border-r border-[#263244] shrink-0 z-50
         fixed inset-y-0 left-0 md:sticky top-0 h-screen transition-all duration-300 ease-in-out flex
         ${desktopMenuCollapsed ? 'w-[260px] md:w-[72px] px-2 py-4' : 'w-[260px] md:w-[240px] p-4'}
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -43,17 +60,17 @@ export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { re
                 src={logoUrl}
                 alt={restaurantName}
                 onError={() => setFailedLogoUrl(logoUrl)}
-                className="w-10 h-10 rounded-[10px] object-cover bg-white shadow-[0_4px_12px_rgba(0,0,0,0.3)] shrink-0"
+                className="w-10 h-10 rounded-xl object-cover bg-white shrink-0"
               />
             ) : (
-              <div className="w-10 h-10 rounded-[10px] bg-gradient-to-br from-[#E23744] to-[#B0202B] text-white font-[Fraunces] text-xl font-bold grid place-items-center shadow-[0_4px_12px_rgba(226,55,68,0.3)] shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[#E23744] text-white text-xl font-bold grid place-items-center shrink-0">
                 {restaurantName.trim().charAt(0).toUpperCase() || "P"}
               </div>
             )}
             {!desktopMenuCollapsed && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-[18px] font-extrabold tracking-[-0.5px] leading-none text-white whitespace-nowrap truncate">{restaurantName}</span>
-                <span className="text-[9px] tracking-[2px] text-[#A1B2C6] mt-1 font-bold uppercase whitespace-nowrap truncate">
+                <span className="text-[17px] font-semibold tracking-tight leading-none text-white whitespace-nowrap truncate">{restaurantName}</span>
+                <span className="text-[10px] tracking-[1.4px] text-[#A8B3C3] mt-1.5 font-semibold uppercase whitespace-nowrap truncate">
                   {staff.role === 'admin' ? 'Admin Dashboard' : 
                    staff.role === 'kitchen' ? 'Kitchen Dashboard' :
                    staff.role === 'counter' ? 'Counter Dashboard' :
@@ -64,13 +81,13 @@ export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { re
           </div>
           <button 
             onClick={() => setMobileMenuOpen(false)} 
-            className="md:hidden text-[#8799AF] hover:text-white p-2 -mr-2 shrink-0"
+            className="md:hidden text-[#A8B3C3] hover:text-white p-2 -mr-2 shrink-0"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
 
-        <nav className="flex flex-col gap-1.5 flex-1 overflow-y-auto overflow-x-hidden pr-0.5 pb-4 scrollbar-hide">
+        <nav className="flex flex-col gap-1 flex-1 overflow-y-auto overflow-x-hidden pr-0.5 pb-4 scrollbar-hide">
           {canOpen("/dashboard/orders") && (
             <SidebarLink href="/dashboard" label="Orders" icon="🧾" active={pathname === "/dashboard"} collapsed={desktopMenuCollapsed} />
           )}
@@ -106,10 +123,10 @@ export default function Sidebar({ restaurantName = "Rasoi", logoUrl = "" }: { re
           )}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-1.5 border-t border-[#1C2633] pt-3">
+        <div className="mt-auto flex flex-col gap-1 border-t border-[#263244] pt-3">
           <button 
             onClick={() => setDesktopMenuCollapsed(!desktopMenuCollapsed)} 
-            className="hidden md:flex items-center justify-center p-2 mb-1 rounded-xl text-[#8799AF] hover:text-white hover:bg-[#111923] transition-colors"
+            className="hidden md:flex items-center justify-center p-2 mb-1 rounded-xl text-[#A8B3C3] hover:text-white hover:bg-[#1B2635] transition-colors"
             title={desktopMenuCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${desktopMenuCollapsed ? 'rotate-180' : ''}`}>
@@ -156,20 +173,32 @@ function useWaitingForPersonCount(enabled: boolean) {
   return count;
 }
 
-function SidebarLink({ href, label, icon, active = false, collapsed = false, badge = 0 }: { href: string; label: string; icon: string; active?: boolean; collapsed?: boolean; badge?: number }) {
+function SidebarLink({ href, label, icon: _icon, active = false, collapsed = false, badge = 0 }: { href: string; label: string; icon: string; active?: boolean; collapsed?: boolean; badge?: number }) {
+  const Icon = label === "Orders" ? ClipboardList
+    : label === "Kitchen" ? ChefHat
+    : label === "POS" ? Monitor
+    : label === "Tables" ? Utensils
+    : label === "Live Chat" ? MessageCircle
+    : label === "Menu" ? BookOpen
+    : label === "Riders" ? Bike
+    : label === "Analytics" ? BarChart3
+    : label === "Contacts" ? Users
+    : label === "Blast" ? Megaphone
+    : Settings;
+
   return (
     <Link
       href={href}
       title={label}
-      className={`relative flex items-center rounded-[10px] font-bold text-[13px] transition-all duration-200 overflow-hidden ${
+      className={`relative flex items-center rounded-xl font-medium text-sm transition-colors duration-150 overflow-hidden ${
         collapsed ? 'justify-center px-0 py-2.5 w-full' : 'px-3 py-2.5 gap-3'
       } ${
         active 
-          ? 'bg-[#17212D] text-white shadow-[0_2px_4px_rgba(0,0,0,0.1)] border border-[#233142]' 
-          : 'text-[#8799AF] hover:bg-[#111923] hover:text-[#C7D3E1] border border-transparent'
+          ? 'bg-[#202B3A] text-white border border-[#2D3B4F]'
+          : 'text-[#A8B3C3] hover:bg-[#1B2635] hover:text-white border border-transparent'
       }`}
     >
-      <span className="text-[15px] opacity-80 shrink-0">{icon}</span>
+      <span className={`grid h-5 w-5 shrink-0 place-items-center ${active ? 'text-white' : 'text-[#93A1B4]'}`}><Icon size={18} strokeWidth={1.8} /></span>
       {!collapsed && <span className="whitespace-nowrap truncate">{label}</span>}
       {badge > 0 && (
         <span title={`${badge} customer(s) asked for a person`} className={`${collapsed ? "absolute top-1 right-1" : "ml-auto"} min-w-[18px] h-[18px] px-1 rounded-full bg-[#E23744] text-white text-[10px] font-extrabold grid place-items-center`}>
@@ -181,17 +210,22 @@ function SidebarLink({ href, label, icon, active = false, collapsed = false, bad
   );
 }
 
-function SidebarButton({ onClick, label, icon, collapsed = false }: { onClick: () => void; label: string; icon: string; collapsed?: boolean }) {
+function SidebarButton({ onClick, label, icon: _icon, collapsed = false }: { onClick: () => void; label: string; icon: string; collapsed?: boolean }) {
+  const Icon = label === "Refresh Now" ? RefreshCw
+    : label === "Disable sound" ? Volume2
+    : label === "Enable sound" ? VolumeX
+    : LogOut;
+
   return (
     <button
       type="button"
       onClick={onClick}
       title={label}
-      className={`flex items-center rounded-[10px] font-bold text-[13px] text-[#8799AF] hover:bg-[#111923] hover:text-[#C7D3E1] transition-all border border-transparent overflow-hidden ${
+      className={`flex items-center rounded-xl font-medium text-sm text-[#A8B3C3] hover:bg-[#1B2635] hover:text-white transition-colors border border-transparent overflow-hidden ${
         collapsed ? 'justify-center px-0 py-2.5 w-full' : 'px-3 py-2.5 gap-3 text-left w-full'
       }`}
     >
-      <span className="text-[15px] opacity-80 shrink-0">{icon}</span>
+      <span className="grid h-5 w-5 shrink-0 place-items-center text-[#93A1B4]"><Icon size={18} strokeWidth={1.8} /></span>
       {!collapsed && <span className="whitespace-nowrap truncate">{label}</span>}
     </button>
   );

@@ -1,6 +1,7 @@
 "use server";
 
 import { authorize } from "@/lib/auth/staff";
+import { INTERNAL_SECRET_HEADER, internalSecret } from "@/lib/server/internal-auth";
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -124,6 +125,7 @@ export async function sendBlast(filter: string, templateName: string, components
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${session.access_token}`,
+        [INTERNAL_SECRET_HEADER]: internalSecret(),
       },
       body: JSON.stringify(payload),
     });

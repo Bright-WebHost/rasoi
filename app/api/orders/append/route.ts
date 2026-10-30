@@ -29,18 +29,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'This order does not belong to that table.' }, { status: 409 });
     }
 
+    const openStatuses = ['new', 'preparing', 'ready_for_pickup']
+    if (!openStatuses.includes(order.status)) {
+      return NextResponse.json({ success: false, error: 'This table order is already closed. Refresh the Tables page to start a new table order.' }, { status: 409 })
+    }
+
     const { data: table, error: tableError } = await adminClient
       .from('restaurant_tables')
-      .select('is_active, current_order_id')
+      .select('id, is_active, current_order_id')
       .eq('table_number', table_number)
       .maybeSingle();
 
-    if (tableError || !table?.is_active || table.current_order_id !== order.id || !['new', 'preparing', 'ready_for_pickup'].includes(order.status)) {
-      return NextResponse.json({ success: false, error: 'This table order is already closed. Please ask restaurant staff for help.' }, { status: 409 });
+    if (tableError || !table) {
+      return NextResponse.json({ success: false, error: 'Table not found. Refresh the Tables page and try again.' }, { status: 404 });
+    }
+
+    const { data: openTableOrders, error: openTableOrdersError } = await adminClient
+      .from('orders')
+      .select('id')
+      .eq('table_number', table_number)
+      .in('status', openStatuses);
+
+    if (openTableOrdersError) throw openTableOrdersError;
+    if (openTableOrders?.some((openOrder: { id: string }) => openOrder.id !== order.id)) {
+      return NextResponse.json({ success: false, error: 'Another open order is assigned to this table. Refresh Tables and add the round to that order.' }, { status: 409 });
+    }
+
+    if (table.current_order_id && table.current_order_id !== order.id) {
+      const { data: pointedOrder } = await adminClient
+        .from('orders')
+        .select('id, status')
+        .eq('id', table.current_order_id)
+        .maybeSingle();
+      if (pointedOrder && openStatuses.includes(pointedOrder.status)) {
+        return NextResponse.json({ success: false, error: 'Another open order is assigned to this table. Refresh Tables and add the round to that order.' }, { status: 409 });
+      }
     }
 
     // 2. Append items with new round
-    let existingItems = order.items_json || [];
+    const existingItems = order.items_json || [];
     let updatedTotal = order.total;
 
     // Determine the next round number
@@ -84,7 +111,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Update the order
-    const { error: updateError } = await adminClient
+    const { data: updatedOrder, error: updateError } = await adminClient
       .from('orders')
       .update({
         items_json: mergedItems,
@@ -93,10 +120,41 @@ export async function POST(request: Request) {
         status: newStatus,
         updated_at: new Date().toISOString()
       })
-      .eq('id', order_id);
+      .eq('id', order_id)
+      .eq('table_number', table_number)
+      .in('status', openStatuses)
+      .select('id')
+      .maybeSingle();
 
     if (updateError) {
       throw updateError;
+    }
+    if (!updatedOrder) {
+      return NextResponse.json({ success: false, error: 'This table order was closed before the round could be added. Refresh the Tables page.' }, { status: 409 });
+    }
+
+    // Repair stale table metadata from older POS orders, where active orders were
+    // visible in Tables but current_order_id had not been set by the POS RPC.
+    const { error: tableSyncError } = await adminClient
+      .from('restaurant_tables')
+      .update({ is_active: true, current_order_id: order.id })
+      .eq('id', table.id);
+    if (tableSyncError) console.error('[append-order] Could not refresh table metadata:', tableSyncError.message);
+    else {
+      const { data: stillOpen, error: statusCheckError } = await adminClient
+        .from('orders')
+        .select('id')
+        .eq('id', order.id)
+        .in('status', openStatuses)
+        .maybeSingle();
+      if (statusCheckError) console.error('[append-order] Could not verify table status after append:', statusCheckError.message);
+      else if (!stillOpen) {
+        await adminClient
+          .from('restaurant_tables')
+          .update({ is_active: false, current_order_id: null })
+          .eq('id', table.id)
+          .eq('current_order_id', order.id);
+      }
     }
 
     // Trigger webhook if we went back to preparing

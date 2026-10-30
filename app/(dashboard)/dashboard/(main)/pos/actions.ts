@@ -4,6 +4,7 @@ import { authorize } from "@/lib/auth/staff";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyOrderCreatedWebhook } from "@/lib/server/notify";
+import { normalizeWhatsAppPhone } from "@/lib/phone/whatsapp";
 
 type PosOrderPayload = {
   customer_name: string;
@@ -37,6 +38,10 @@ export async function createPosOrder(payload: PosOrderPayload) {
   await authorize("pos");
 
   try {
+    if (payload.order_type === "dine-in" && !normalizeWhatsAppPhone(payload.customer_phone)) {
+      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the final table bill." };
+    }
+
     const adminClient = createAdminClient();
     const tableError = await checkDineInTable(adminClient, payload);
     if (tableError) return { success: false, error: tableError };
@@ -57,6 +62,10 @@ export async function createPosOrder(payload: PosOrderPayload) {
 
     if (error || !data) {
       console.error("[createPosOrder] RPC error:", error?.message);
+
+      if (error?.message?.toLowerCase().includes("table unavailable")) {
+        return { success: false, error: "That table already has an open order. Add items to the existing table order instead." };
+      }
       
       if (error?.message?.includes("Could not find the function") || error?.code === 'PGRST202') {
         return { success: false, error: "POS order creation is not configured yet. Please run the required database migration." };
@@ -100,50 +109,72 @@ export async function updatePosOrder(orderId: string, payload: PosOrderPayload) 
 
   try {
     const adminClient = createAdminClient();
-    const tableError = await checkDineInTable(adminClient, payload);
+    // Preserve the original dine-in classification and table when staff edit it in POS.
+    const { data: oldOrder, error: oldOrderError } = await adminClient
+      .from("orders")
+      .select("total, items_json, status, order_type, table_number")
+      .eq("id", orderId)
+      .single();
+    if (oldOrderError || !oldOrder) return { success: false, error: "Order not found." };
+
+    const isExistingDineIn = oldOrder.order_type === "dine-in" || Boolean(String(oldOrder.table_number || "").trim());
+    const storedOrderType = isExistingDineIn ? "dine-in" : oldOrder.order_type;
+    if (payload.order_type !== storedOrderType) {
+      return { success: false, error: "An existing order's type can't be changed in POS. Create a new order instead." };
+    }
+    const effectivePayload: PosOrderPayload = {
+      ...payload,
+      order_type: storedOrderType as PosOrderPayload["order_type"],
+      table_number: isExistingDineIn
+        ? String(oldOrder.table_number || payload.table_number || "").trim()
+        : payload.order_type === "dine-in" ? payload.table_number.trim() : "",
+    };
+    if (isExistingDineIn && !normalizeWhatsAppPhone(effectivePayload.customer_phone)) {
+      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the final table bill." };
+    }
+    const tableError = await checkDineInTable(adminClient, effectivePayload);
     if (tableError) return { success: false, error: tableError };
 
-    // Fetch old order to compare
-    const { data: oldOrder } = await adminClient.from("orders").select("total, items_json, status").eq("id", orderId).single();
-
     let newStatus = undefined;
-    let finalItemsJson = payload.items_json;
+    let finalItemsJson = effectivePayload.items_json;
 
-    if (oldOrder) {
-      const oldItems = oldOrder.items_json || [];
-      
-      finalItemsJson = payload.items_json.map(newItem => {
-        const oldItem = oldItems.find((oi: any) => oi.item_name === newItem.item_name && oi.variant_name === newItem.variant_name);
-        if (!oldItem || newItem.quantity > oldItem.quantity) {
-          return { ...newItem, is_new_addition: true, old_quantity: oldItem ? oldItem.quantity : 0 };
-        }
-        return newItem;
-      });
+    const oldItems = oldOrder.items_json || [];
 
-      if (payload.total > oldOrder.total) {
-        if (["ready_for_pickup", "out_for_delivery", "delivered"].includes(oldOrder.status)) {
-          newStatus = "preparing";
-        }
+    finalItemsJson = effectivePayload.items_json.map(newItem => {
+      const oldItem = oldItems.find((oi: any) => oi.item_name === newItem.item_name && oi.variant_name === newItem.variant_name);
+      if (!oldItem || newItem.quantity > oldItem.quantity) {
+        return { ...newItem, is_new_addition: true, old_quantity: oldItem ? oldItem.quantity : 0 };
+      }
+      return newItem;
+    });
+
+    if (effectivePayload.total > oldOrder.total) {
+      if (["ready_for_pickup", "out_for_delivery", "delivered"].includes(oldOrder.status)) {
+        newStatus = "preparing";
       }
     }
 
     // Update order row
     const updatePayload: any = {
-      customer_name: payload.customer_name,
-      customer_phone: payload.customer_phone,
-      order_type: payload.order_type,
-      table_number: payload.table_number,
-      address: payload.address,
-      landmark: payload.landmark,
-      pincode: payload.pincode,
-      total: payload.total,
-      items: payload.items_summary,
+      customer_name: effectivePayload.customer_name,
+      customer_phone: effectivePayload.customer_phone,
+      order_type: effectivePayload.order_type,
+      table_number: effectivePayload.table_number,
+      address: effectivePayload.address,
+      landmark: effectivePayload.landmark,
+      pincode: effectivePayload.pincode,
+      total: effectivePayload.total,
+      items: effectivePayload.items_summary,
       items_json: finalItemsJson,
       updated_at: new Date().toISOString()
     };
 
     if (newStatus) {
       updatePayload.status = newStatus;
+    }
+    if (isExistingDineIn && oldOrder.status === "delivered" && newStatus === "preparing") {
+      updatePayload.whatsapp_bill_sent_at = null;
+      updatePayload.whatsapp_bill_error = null;
     }
 
     const { error: orderError } = await adminClient.from("orders").update(updatePayload).eq("id", orderId);

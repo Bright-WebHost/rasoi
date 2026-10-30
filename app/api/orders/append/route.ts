@@ -24,7 +24,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
-    if (order.order_type !== 'dine-in' || String(order.table_number) !== String(table_number)) {
+    const isDineInOrder = order.order_type === 'dine-in' || Boolean(String(order.table_number || '').trim());
+    if (!isDineInOrder || String(order.table_number) !== String(table_number)) {
       return NextResponse.json({ success: false, error: 'This order does not belong to that table.' }, { status: 409 });
     }
 
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     }
 
     // Trigger webhook if we went back to preparing
-    if (newStatus === 'preparing' && order.status !== 'preparing' && order.order_type !== 'dine-in') {
+    if (newStatus === 'preparing' && order.status !== 'preparing' && !isDineInOrder) {
       await notifyStatusWebhook(order.order_number, "preparing", undefined, { is_update: true });
     }
 

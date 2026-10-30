@@ -21,12 +21,16 @@ export async function POST(request: Request) {
     // 1. Fetch existing order
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, status, is_collected, total, rider_phone, customer_phone, customer_name, items_json, order_type')
+      .select('id, status, is_collected, total, rider_phone, customer_phone, customer_name, items_json, order_type, table_number')
       .eq('order_number', order_number)
       .single();
 
     if (orderError || !order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
+    }
+
+    if (order.order_type !== 'delivery' || String(order.table_number || '').trim()) {
+      return NextResponse.json({ success: false, error: 'Not a delivery order' }, { status: 400 });
     }
 
     const dbPhone = (order.rider_phone || '').replace(/[^0-9]/g, '');

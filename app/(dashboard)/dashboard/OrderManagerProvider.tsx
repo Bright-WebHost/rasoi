@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { createClient } from "@/lib/supabase/client";
 import { DashboardOrder, OrderStatus } from "@/lib/orders/queries";
 import { notifyStatusWebhook, notifyOrderCreatedWebhook, notifyRiderText } from "@/lib/server/notify";
+import { normalizeDashboardOrderType } from "@/lib/orders/type-utils";
 import { useStaff } from "@/components/providers/StaffProvider";
 import { isAuthError, redirectIfSessionExpired } from "@/lib/auth/session-expired";
 
@@ -146,7 +147,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
           const existing = ordersRef.current.find(curr => curr.id === o.id);
           if (existing) return existing;
         }
-        return o;
+        return { ...o, order_type: normalizeDashboardOrderType(o) };
       }) as DashboardOrder[];
       setOrders(latestOrders);
       ordersRef.current = latestOrders;
@@ -304,6 +305,8 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       // Trigger refresh but don't await it to keep UI responsive
       refreshOrders().catch(console.error);
 
+    const isDineInOrder = order.order_type === "dine-in" || Boolean(String(order.table_number || "").trim());
+
       if (autoPrint && previousStatus === "new" && nextStatus === "preparing") {
         import("@/lib/print/bill")
           .then(({ printOrderBill }) => printOrderBill(order.id, { auto: true }))
@@ -312,7 +315,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
 
       // Trigger Webhook
       try {
-        if (previousStatus === 'new' && nextStatus === 'preparing' && order.source !== 'pos' && order.order_type !== 'dine-in') {
+        if (previousStatus === 'new' && nextStatus === 'preparing' && order.source !== 'pos' && !isDineInOrder) {
           // Delivery and takeaway get their invoice when accepted. Dine-in QR orders get one final bill only when staff closes the table.
           const itemsArr = Array.isArray(order.items_json) ? order.items_json : [];
           notifyOrderCreatedWebhook({
@@ -320,6 +323,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
             customer_phone: order.customer_phone,
             customer_name: order.customer_name,
             order_type: order.order_type,
+            table_number: order.table_number,
             items: itemsArr.map((item: any) => ({
               item_name: item.item_name,
               quantity: item.quantity,
@@ -333,7 +337,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
         // When a rider is first assigned:
         // 1. Send rider direct message with Collected / Unpaid buttons (no accept step)
         // 2. Send customer message with assigned rider name and phone
-        if (updates.rider_name && !order.rider_name) {
+        if (!isDineInOrder && updates.rider_name && !order.rider_name) {
           const addr = [order.address, order.landmark, order.city, order.pincode].filter(Boolean).join(", ") || "No address provided";
           const riderMessage = `🚚 *Delivery for you — Rasoi*\n\n*Order:* ${order.order_number}\n*Customer:* ${order.customer_name || "Guest"}\n*Address:* ${addr}\n\n*Collect: Rs.${order.total}*\n\nAfter delivering, tap the button below to confirm.`;
 
@@ -362,7 +366,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
         // When a rider is RE-assigned (different rider):
         // 1. Send new rider the delivery message
         // 2. Notify customer of new rider details with apology
-        if (updates.rider_name && order.rider_name && updates.rider_name !== order.rider_name) {
+        if (!isDineInOrder && updates.rider_name && order.rider_name && updates.rider_name !== order.rider_name) {
           if (order.rider_phone) {
             notifyRiderText(order.rider_phone, `Order ${order.order_number} has been reassigned to another rider. No action needed from you.`).catch(console.error);
           }
@@ -392,7 +396,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
         }
 
         // When cancelled, send sorry message with reason to customer (WhatsApp orders only)
-        if (nextStatus === "cancelled" && order.source !== "pos" && order.customer_phone) {
+        if (!isDineInOrder && nextStatus === "cancelled" && order.source !== "pos" && order.customer_phone) {
           const rawReason = reason || "";
           // Strip the prepended status prefix ("new|Kitchen full" -> "Kitchen full")
           const cleanReason = rawReason.includes("|") ? rawReason.split("|").slice(1).join("|") : rawReason;

@@ -7,6 +7,7 @@ import { createPosOrder, updatePosOrder } from "./actions";
 import { useOrderManager } from "../../OrderManagerProvider";
 import { fetchTables, RestaurantTable } from "../tables/actions";
 import { printOrderBill } from "@/lib/print/bill";
+import { normalizeWhatsAppPhone } from "@/lib/phone/whatsapp";
 
 type VariantOption = {
   label: string;
@@ -139,7 +140,9 @@ export default function PosBoard() {
         
         const orderData = data as any;
         if (orderData) {
-          setOrderType(orderData.order_type as any);
+          const isDineInOrder = orderData.order_type === "dine-in" || Boolean(String(orderData.table_number || "").trim());
+          setOrderType(isDineInOrder ? "dine-in" : orderData.order_type as "takeaway" | "delivery");
+          if (editId && isDineInOrder && orderData.table_number) setLockedTable(orderData.table_number);
           setCustomerName(orderData.customer_name || "");
           setWhatsappNumber(orderData.customer_phone || "");
           setTableNumber(orderData.table_number || "");
@@ -258,6 +261,10 @@ export default function PosBoard() {
   const handleConfirmOrder = () => {
     if (orderType === "dine-in" && !tableNumber.trim()) {
       setOrderResult({ success: false, error: "Please select a table for a dine-in order." });
+      return;
+    }
+    if (orderType === "dine-in" && !normalizeWhatsAppPhone(whatsappNumber)) {
+      setOrderResult({ success: false, error: "Enter a valid WhatsApp number so the customer can receive the final table bill." });
       return;
     }
     startTransition(async () => {
@@ -580,10 +587,14 @@ export default function PosBoard() {
             </div>
           </div>
 
-          {lockedTable || (appendOrderId && orderType === "dine-in") ? (
+          {editOrderId || lockedTable || (appendOrderId && orderType === "dine-in") ? (
             <div className="flex items-center justify-between gap-2 rounded-[14px] border border-[#C6ECD6] bg-[#E5F5EC] px-4 py-2.5">
-              <span className="text-[14px] font-extrabold text-[#146C43]">🍽️ Dine-in · Table {tableNumber || lockedTable}</span>
-              <a href="/dashboard/tables" className="text-[12px] font-bold text-[#146C43] underline">Change table</a>
+              <span className="text-[14px] font-extrabold text-[#146C43]">
+                {orderType === "dine-in" ? `Dine-in · Table ${tableNumber || lockedTable || "—"}` : `Editing ${orderType} order`}
+              </span>
+              {orderType === "dine-in" && (lockedTable || appendOrderId) && (
+                <a href="/dashboard/tables" className="text-[12px] font-bold text-[#146C43] underline">Change table</a>
+              )}
             </div>
           ) : (
           <div className="grid grid-cols-3 gap-1.5 bg-[#F8FAFB] p-1.5 rounded-[14px] border border-[#EAF0F6]">
@@ -676,12 +687,15 @@ export default function PosBoard() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-black text-[#6B7A90] uppercase tracking-widest mb-1.5 block">WhatsApp (Opt)</label>
+              <label className="text-[11px] font-black text-[#6B7A90] uppercase tracking-widest mb-1.5 block">
+                WhatsApp {orderType === "dine-in" ? "*" : "(Opt)"}
+              </label>
               <input
                 type="text"
                 value={whatsappNumber}
                 onChange={(e) => setWhatsappNumber(e.target.value)}
                 placeholder="+91..."
+                required={orderType === "dine-in"}
                 className="w-full px-3.5 py-2.5 rounded-[10px] border border-[#EAF0F6] bg-[#F8FAFB] text-[13px] font-black text-[#0A1017] focus:border-[#0D6EFD] focus:bg-white focus:ring-4 focus:ring-[#0D6EFD]/10 outline-none transition-all placeholder:text-[#A1B2C6]"
               />
             </div>

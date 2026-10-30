@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useCallback, FormEvent } from "react";
 import { Plus, Edit2, Trash2, Eye, EyeOff } from "lucide-react";
+import { deleteMenuItem, getMenuItems, saveMenuItem, setMenuItemAvailable, setMenuItemPinned, uploadMenuImage } from "./actions";
 
 type MenuItem = {
   id: string;
@@ -13,9 +13,13 @@ type MenuItem = {
   available: boolean;
   description: string | null;
   image_url: string | null;
-  variants: any; // jsonb
+  variants: unknown; // jsonb
   is_pinned?: boolean;
 };
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function MenuBoard() {
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -40,53 +44,65 @@ export default function MenuBoard() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingItemId, setPendingItemId] = useState<string | null>(null);
 
-  const supabase = createClient() as any;
-
-  const fetchMenu = async () => {
-    setLoading(true);
-    const { data, error: err } = await supabase
-      .from("menu_items")
-      .select("*")
-      .order("item_number", { ascending: true });
-
-    if (err) {
-      setError("Failed to fetch menu items.");
-    } else {
-      setItems(data as MenuItem[]);
+  const fetchMenu = useCallback(async () => {
+    try {
+      const result = await getMenuItems();
+      setError(null);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setItems(result.items);
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to fetch menu items."));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    fetchMenu();
+    let cancelled = false;
+    void getMenuItems()
+      .then((result) => {
+        if (cancelled) return;
+        setError(null);
+        if (!result.success) {
+          setError(result.error);
+          return;
+        }
+        setItems(result.items);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(errorMessage(err, "Failed to fetch menu items."));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.currentTarget.value = "";
 
     setIsUploading(true);
     setFormError(null);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('menu_images')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('menu_images')
-        .getPublicUrl(fileName);
-
-      setFormImageUrl(publicUrl);
-    } catch (err: any) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await uploadMenuImage(formData);
+      if (!result.success) throw new Error(result.error);
+      setFormImageUrl(result.url);
+    } catch (err: unknown) {
       console.error(err);
-      setFormError("Failed to upload image: " + err.message);
+      setFormError(errorMessage(err, "Failed to upload image."));
     } finally {
       setIsUploading(false);
     }
@@ -184,70 +200,63 @@ export default function MenuBoard() {
       variants: variantsJson,
     };
 
-    if (modalMode === "add") {
-      const { error: insertErr } = await supabase.from("menu_items").insert(payload);
-      if (insertErr) {
-        if (insertErr.code === "23505") {
-          setFormError(`Item number ${itemNum} already exists.`);
-        } else {
-          setFormError(insertErr.message);
-        }
+    try {
+      const result = await saveMenuItem(payload, modalMode === "edit" ? editingId : null);
+      if (!result.success) {
+        setFormError(result.error);
       } else {
         setIsModalOpen(false);
-        fetchMenu();
+        await fetchMenu();
       }
-    } else {
-      const { error: updateErr } = await supabase.from("menu_items").update(payload).eq("id", editingId!);
-      if (updateErr) {
-        if (updateErr.code === "23505") {
-          setFormError(`Item number ${itemNum} already exists.`);
-        } else {
-          setFormError(updateErr.message);
-        }
-      } else {
-        setIsModalOpen(false);
-        fetchMenu();
-      }
+    } catch (err: unknown) {
+      setFormError(errorMessage(err, "Failed to save menu item."));
+    } finally {
+      setFormSaving(false);
     }
-
-    setFormSaving(false);
   };
 
   const handleToggle = async (item: MenuItem) => {
-    const { error: err } = await supabase
-      .from("menu_items")
-      .update({ available: !item.available })
-      .eq("id", item.id);
-    if (!err) {
-      setItems(items.map(i => (i.id === item.id ? { ...i, available: !item.available } : i)));
-    } else {
-      alert("Failed to toggle visibility: " + err.message);
+    setPendingItemId(item.id);
+    setError(null);
+    try {
+      const nextAvailable = !item.available;
+      const result = await setMenuItemAvailable(item.id, nextAvailable);
+      if (!result.success) throw new Error(result.error);
+      setItems((current) => current.map(i => (i.id === item.id ? { ...i, available: nextAvailable } : i)));
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to toggle visibility."));
+    } finally {
+      setPendingItemId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this menu item?")) return;
-    const { error: err } = await supabase.from("menu_items").delete().eq("id", id);
-    if (err) {
-      if (err.code === "23503") {
-        alert("Cannot delete this item because it exists in historical orders. Please hide it instead.");
-      } else {
-        alert("Failed to delete item: " + err.message);
-      }
-    } else {
-      setItems(items.filter(i => i.id !== id));
+    setPendingItemId(id);
+    setError(null);
+    try {
+      const result = await deleteMenuItem(id);
+      if (!result.success) throw new Error(result.error);
+      setItems((current) => current.filter(i => i.id !== id));
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to delete item."));
+    } finally {
+      setPendingItemId(null);
     }
   };
 
   const handleTogglePin = async (item: MenuItem) => {
-    const { error: err } = await supabase
-      .from("menu_items")
-      .update({ is_pinned: !item.is_pinned })
-      .eq("id", item.id);
-    if (!err) {
-      setItems(items.map(i => (i.id === item.id ? { ...i, is_pinned: !item.is_pinned } : i)));
-    } else {
-      alert("Failed to pin item: " + err.message);
+    setPendingItemId(item.id);
+    setError(null);
+    try {
+      const nextPinned = !item.is_pinned;
+      const result = await setMenuItemPinned(item.id, nextPinned);
+      if (!result.success) throw new Error(result.error);
+      setItems((current) => current.map(i => (i.id === item.id ? { ...i, is_pinned: nextPinned } : i)));
+    } catch (err: unknown) {
+      setError(errorMessage(err, "Failed to update pin."));
+    } finally {
+      setPendingItemId(null);
     }
   };
 
@@ -332,6 +341,8 @@ export default function MenuBoard() {
                   </div>
                   <div className="flex items-center gap-2 self-end sm:self-auto">
                     <button
+                      type="button"
+                      disabled={pendingItemId === item.id}
                       onClick={() => handleTogglePin(item)}
                       title={item.is_pinned ? "Unpin item" : "Pin item to top"}
                       className={`rounded-xl p-2.5 transition-all border ${
@@ -341,6 +352,8 @@ export default function MenuBoard() {
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill={item.is_pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
                     </button>
                     <button
+                      type="button"
+                      disabled={pendingItemId === item.id}
                       onClick={() => handleToggle(item)}
                       title={item.available ? "Hide item" : "Show item"}
                       className="rounded-xl p-2.5 text-[#8799AF] hover:bg-[#F3F6F9] hover:text-[#0A1017] transition-all border border-transparent hover:border-[#EAF0F6]"
@@ -348,6 +361,8 @@ export default function MenuBoard() {
                       {item.available ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                     <button
+                      type="button"
+                      disabled={pendingItemId === item.id}
                       onClick={() => openEditModal(item)}
                       title="Edit item"
                       className="rounded-xl p-2.5 text-[#8799AF] hover:bg-[#EAF2FD] hover:text-[#0D6EFD] transition-all border border-transparent hover:border-[#C9DEFA]"
@@ -355,6 +370,8 @@ export default function MenuBoard() {
                       <Edit2 className="h-5 w-5" />
                     </button>
                     <button
+                      type="button"
+                      disabled={pendingItemId === item.id}
                       onClick={() => handleDelete(item.id)}
                       title="Delete item"
                       className="rounded-xl p-2.5 text-[#8799AF] hover:bg-[#FDE8E8] hover:text-[#C0392B] transition-all border border-transparent hover:border-[#F5C2C6]"
@@ -521,8 +538,8 @@ export default function MenuBoard() {
               <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-xl px-5 py-2.5 font-bold text-[#6B7A90] hover:bg-white hover:text-[#0A1017] hover:shadow-sm transition border border-transparent hover:border-[#EAF0F6]">
                 Cancel
               </button>
-              <button type="submit" form="menu-form" disabled={formSaving} className="rounded-xl bg-[#E23744] px-6 py-2.5 font-bold text-white shadow-[0_4px_12px_rgba(226,55,68,0.25)] hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(226,55,68,0.35)] transition disabled:opacity-50">
-                {formSaving ? "Saving..." : "Save Item"}
+              <button type="submit" form="menu-form" disabled={formSaving || isUploading} className="rounded-xl bg-[#E23744] px-6 py-2.5 font-bold text-white shadow-[0_4px_12px_rgba(226,55,68,0.25)] hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(226,55,68,0.35)] transition disabled:opacity-50">
+                {isUploading ? "Uploading image..." : formSaving ? "Saving..." : "Save Item"}
               </button>
             </div>
           </div>

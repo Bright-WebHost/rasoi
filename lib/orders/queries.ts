@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normalizeDashboardOrderType } from "@/lib/orders/type-utils";
 
 export const ORDER_STATUSES = [
   "new",
@@ -117,7 +118,7 @@ export async function getDashboardOrders(): Promise<{
         items_json: order.items_json ?? null,
         total: Number(order.total ?? 0),
         status: (order.status as OrderStatus) ?? "new",
-        order_type: (order.order_type as DashboardOrder["order_type"]) ?? "delivery",
+        order_type: normalizeDashboardOrderType(order) as DashboardOrder["order_type"],
         amendment_count: Number(order.amendment_count ?? 0),
       })),
       error: null,

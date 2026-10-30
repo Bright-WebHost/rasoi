@@ -36,7 +36,8 @@ export async function sendClosedTableBill(orderId: string) {
     .maybeSingle();
 
   if (error || !order) return { success: false, sent: false, error: "Closed table order could not be loaded." };
-  if (order.order_type !== "dine-in" || order.status !== "delivered") {
+  const isDineInOrder = order.order_type === "dine-in" || Boolean(String(order.table_number || "").trim());
+  if (!isDineInOrder || order.status !== "delivered") {
     return { success: false, sent: false, error: "The table order must be closed before its bill can be sent." };
   }
   if (order.whatsapp_bill_sent_at) return { success: true, sent: true, alreadySent: true };

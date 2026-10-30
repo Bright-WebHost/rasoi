@@ -52,8 +52,8 @@ export async function fetchTables() {
     const { data: activeOrders, error: activeOrdersError } = await adminClient
       .from("orders")
       .select("id, total, status, items_json, customer_name, customer_phone, table_number, created_at")
-      .eq("order_type", "dine-in")
-      .in("status", ["new", "preparing", "ready_for_pickup"]);
+      .in("status", ["new", "preparing", "ready_for_pickup"])
+      .order("created_at", { ascending: false });
 
     if (activeOrdersError) {
       console.error("[fetchTables] Error fetching active orders:", activeOrdersError);
@@ -67,11 +67,13 @@ export async function fetchTables() {
 
     const { data: weekOrders } = await adminClient
       .from("orders")
-      .select("id")
-      .eq("order_type", "dine-in")
+      .select("id, order_type, table_number")
       .gte("created_at", startOfWeek.toISOString());
 
-    const activeList = activeOrders || [];
+    const isTableOrder = (order: { order_type?: string | null; table_number?: string | null }) =>
+      order.order_type === "dine-in" || Boolean(String(order.table_number ?? "").trim());
+    const activeList = (activeOrders || []).filter(isTableOrder);
+    const dineInWeekCount = (weekOrders || []).filter(isTableOrder).length;
 
     const tables = (data as any[]).map((t, idx) => {
       // Find active order for this table
@@ -101,7 +103,7 @@ export async function fetchTables() {
       open_tables: openCount,
       total_tables: tables.length,
       food_ready: foodReadyCount,
-      dine_in_week: weekOrders?.length || 0,
+      dine_in_week: dineInWeekCount,
       open_value: openValue,
     };
 
@@ -165,7 +167,6 @@ export async function deleteTable(id: string) {
         .from("orders")
         .select("id")
         .eq("table_number", table.table_number)
-        .eq("order_type", "dine-in")
         .in("status", ["new", "preparing", "ready_for_pickup"])
         .limit(1)
         .maybeSingle();
@@ -205,7 +206,6 @@ export async function clearTable(id: string) {
       const { data: activeOrder } = await adminClient
         .from("orders")
         .select("id")
-        .eq("order_type", "dine-in")
         .eq("table_number", table.table_number)
         .in("status", ["new", "preparing", "ready_for_pickup"])
         .order("created_at", { ascending: false })
@@ -221,12 +221,12 @@ export async function clearTable(id: string) {
     if (orderIdToClear) {
       const { data: currentOrder, error: orderReadError } = await adminClient
         .from("orders")
-        .select("id, order_type, status")
+        .select("id, order_type, table_number, status")
         .eq("id", orderIdToClear)
         .maybeSingle();
 
       if (orderReadError) throw orderReadError;
-      if (currentOrder && currentOrder.order_type === "dine-in") {
+      if (currentOrder && (currentOrder.order_type === "dine-in" || String(currentOrder.table_number || "").trim() === String(table.table_number || "").trim())) {
         if (["new", "preparing", "ready_for_pickup"].includes(currentOrder.status)) {
           const { error: closeOrderError } = await adminClient
             .from("orders")
@@ -317,7 +317,6 @@ export async function moveTable(orderId: string, oldTableNumber: string, newTabl
       .from('orders')
       .select('id')
       .eq('table_number', newTableNumber)
-      .eq('order_type', 'dine-in')
       .in('status', ['new', 'preparing', 'ready_for_pickup'])
       .maybeSingle();
       
@@ -349,10 +348,13 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     const adminClient = createAdminClient();
     
     // Fetch both orders
-    const { data: sourceOrder } = await adminClient.from('orders').select('items_json, total').eq('id', sourceOrderId).single();
-    const { data: targetOrder } = await adminClient.from('orders').select('items_json, total, status, order_number, order_type').eq('id', targetOrderId).single();
+    const { data: sourceOrder } = await adminClient.from('orders').select('items_json, total, order_type, table_number').eq('id', sourceOrderId).single();
+    const { data: targetOrder } = await adminClient.from('orders').select('items_json, total, status, order_number, order_type, table_number').eq('id', targetOrderId).single();
     
     if (!sourceOrder || !targetOrder) return { success: false, error: 'Order not found' };
+    const sourceIsDineIn = sourceOrder.order_type === 'dine-in' || Boolean(String(sourceOrder.table_number || '').trim());
+    const targetIsDineIn = targetOrder.order_type === 'dine-in' || Boolean(String(targetOrder.table_number || '').trim());
+    if (!sourceIsDineIn || !targetIsDineIn) return { success: false, error: 'Only dine-in table orders can be merged.' };
     
     let existingTargetItems = targetOrder.items_json || [];
     let sourceItems = sourceOrder.items_json || [];
@@ -384,25 +386,24 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     }
     
     // Update Target Order
-    await adminClient.from('orders').update({
+    const targetUpdates: Record<string, any> = {
       items_json: mergedItems,
       items: itemsSummary,
       total: newTotal,
       status: newStatus,
       updated_at: new Date().toISOString()
-    }).eq('id', targetOrderId);
+    };
+    if (targetOrder.status === 'delivered' && newStatus === 'preparing') {
+      targetUpdates.whatsapp_bill_sent_at = null;
+      targetUpdates.whatsapp_bill_error = null;
+    }
+    await adminClient.from('orders').update(targetUpdates).eq('id', targetOrderId);
     
     // Mark Source Order as cancelled to remove from active
     await adminClient.from('orders').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', sourceOrderId);
     
     // Clear the source table
     await adminClient.from('restaurant_tables').update({ is_active: false, current_order_id: null }).eq('table_number', sourceTableNumber);
-    
-    // Notify webhook for target order
-    if (newStatus === 'preparing' && targetOrder.status !== 'preparing' && targetOrder.order_type !== 'dine-in') {
-      const { notifyStatusWebhook } = await import("@/lib/server/notify");
-      await notifyStatusWebhook(targetOrder.order_number, 'preparing', undefined, { is_update: true });
-    }
     
     return { success: true };
   } catch (error: any) {

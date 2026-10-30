@@ -17,6 +17,7 @@ export async function updateOrderInDb(orderId: string, updates: any) {
       .select("order_type, table_number")
       .eq("id", orderId)
       .maybeSingle();
+    const isDineInOrder = currentOrder?.order_type === "dine-in" || Boolean(String(currentOrder?.table_number || "").trim());
 
     // Restoring a cancelled order needs the undo passcode → reopenCancelledOrder().
     if (updates && typeof updates.status === "string" && updates.status !== "cancelled") {
@@ -26,7 +27,7 @@ export async function updateOrderInDb(orderId: string, updates: any) {
       }
     }
 
-    const orderUpdates = updates?.status === "delivered" && currentOrder?.order_type === "dine-in"
+    const orderUpdates = updates?.status === "delivered" && isDineInOrder
       ? { ...updates, is_collected: true }
       : updates;
     const { error } = await adminClient
@@ -39,7 +40,7 @@ export async function updateOrderInDb(orderId: string, updates: any) {
       return { success: false, error: error.message };
     }
 
-    if (updates?.status === "delivered" && currentOrder?.order_type === "dine-in") {
+    if (updates?.status === "delivered" && isDineInOrder) {
       if (currentOrder.table_number) {
         const { error: tableError } = await adminClient
           .from("restaurant_tables")

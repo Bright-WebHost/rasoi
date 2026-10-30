@@ -40,6 +40,11 @@ export async function notifyStatusWebhook(order_number: string, status: string, 
 }
 export async function notifyOrderCreatedWebhook(payload: any) {
   try {
+    // Dine-in customers receive their itemized bill only after staff closes the table.
+    if (payload?.order_type === "dine-in" || String(payload?.table_number || "").trim()) {
+      return { success: true, skipped: true };
+    }
+
     const notifyUrl = process.env.N8N_ORDER_CREATED_WEBHOOK_URL?.trim();
     const notifySecret = process.env.RASOI_WHATSAPP_INBOUND_SECRET?.trim() || process.env.RASOI_N8N_WEBHOOK_SECRET?.trim() || '';
     if (!notifyUrl || !notifySecret) return { success: false, error: 'Rasoi order-created webhook is not configured.' };

@@ -680,7 +680,13 @@ function OrderCard({ order, onOpen, onStatusChange, now, isDineInSection = false
         <div className="flex flex-col items-end">
           <span className="text-[14px] font-extrabold text-[var(--ink)]">{money(order.total)}</span>
           <span className={`text-[11px] font-bold ${countdown.isOverdue ? "text-[var(--danger)]" : isAgeWarning ? "text-[var(--warn)]" : "text-[var(--muted)]"}`}>
-            {isDineInSection ? getAgeLabel(order) : countdown.label}
+            {isDineInSection && order.status === "delivered"
+              ? "Closed"
+              : isDineInSection && order.status === "cancelled"
+                ? "Cancelled"
+                : isDineInSection
+                  ? getAgeLabel(order)
+                  : countdown.label}
           </span>
         </div>
       </div>
@@ -918,13 +924,21 @@ export default function OrdersBoard() {
   }, [orders, range]);
 
   const visibleOrders = filteredOrders.filter((order) => order.status !== "cancelled");
-  const activeDineInOrders = orders
-    .filter((order) => order.order_type === "dine-in" && order.status !== "delivered" && order.status !== "cancelled")
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const boardOrders = visibleOrders.filter((order) => order.order_type !== "dine-in" || order.status === "delivered");
+  const dineInOrders = orders
+    .filter((order) => order.order_type === "dine-in" && (
+      (order.status !== "delivered" && order.status !== "cancelled") || inRange(order, range)
+    ))
+    .sort((a, b) => {
+      const aOpen = a.status !== "delivered" && a.status !== "cancelled";
+      const bOpen = b.status !== "delivered" && b.status !== "cancelled";
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  // Keep every dine-in state in its own section; closed tables never move to Delivered.
+  const boardOrders = visibleOrders.filter((order) => order.order_type !== "dine-in");
   // Shown regardless of the date filter until someone marks them paid.
   const unpaidOrders = orders.filter(isUnpaid);
-  const cancelledOrders = filteredOrders.filter((order) => order.status === "cancelled");
+  const cancelledOrders = filteredOrders.filter((order) => order.status === "cancelled" && order.order_type !== "dine-in");
 
   const totalRevenue = visibleOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
   const awaitingAccept = visibleOrders.filter((order) => order.status === "new").length;
@@ -977,18 +991,18 @@ export default function OrdersBoard() {
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#F3F6F9] text-xl" aria-hidden="true">🍽️</span>
             <div>
               <h2 id="dine-in-orders-heading" className="text-[18px] font-extrabold tracking-tight text-[#0A1017]">Dine-in</h2>
-              <p className="text-[12px] font-semibold text-[#8799AF]">Open table orders stay here until marked done.</p>
+              <p className="text-[12px] font-semibold text-[#8799AF]">Dine-in orders stay here, including orders closed from POS or Tables.</p>
             </div>
           </div>
-          <span className="grid h-8 min-w-8 place-items-center rounded-full bg-[#0A1017] px-2.5 text-[13px] font-black text-white" aria-label={`${activeDineInOrders.length} active dine-in orders`}>
-            {activeDineInOrders.length}
+          <span className="grid h-8 min-w-8 place-items-center rounded-full bg-[#0A1017] px-2.5 text-[13px] font-black text-white" aria-label={`${dineInOrders.length} dine-in orders`}>
+            {dineInOrders.length}
           </span>
         </div>
 
-        {activeDineInOrders.length > 0 ? (
+        {dineInOrders.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
             <AnimatePresence mode="popLayout">
-              {activeDineInOrders.map((order) => (
+              {dineInOrders.map((order) => (
                 <motion.div
                   key={order.id}
                   layout

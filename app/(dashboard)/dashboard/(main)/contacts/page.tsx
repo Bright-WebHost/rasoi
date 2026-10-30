@@ -1,12 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import ContactsBoard from "./ContactsBoard";
+import ContactsView from "./ContactsView";
 
-export default async function ContactsPage() {
-  await requirePage("/dashboard/contacts");
-
-  return (
-    <div className="w-full">
-      <ContactsBoard />
-    </div>
-  );
+export default function Page() {
+  return <ContactsView />;
 }

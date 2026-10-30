@@ -1,12 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import MenuBoard from "./MenuBoard";
+import MenuView from "./MenuView";
 
-export default async function MenuPage() {
-  await requirePage("/dashboard/menu");
-
-  return (
-    <section>
-      <MenuBoard />
-    </section>
-  );
+export default function Page() {
+  return <MenuView />;
 }

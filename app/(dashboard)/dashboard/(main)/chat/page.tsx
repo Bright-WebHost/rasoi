@@ -1,12 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import ChatBoard from "./ChatBoard";
+import ChatView from "./ChatView";
 
-export default async function ChatPage() {
-  await requirePage("/dashboard/chat");
-
-  return (
-    <section>
-      <ChatBoard />
-    </section>
-  );
+export default function Page() {
+  return <ChatView />;
 }

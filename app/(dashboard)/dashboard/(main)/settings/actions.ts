@@ -78,6 +78,11 @@ function validateSettingsPatch(patch: Partial<RawSettings>): { error: string } |
       value = String(n);
     }
     if (BOOLEAN_KEYS.includes(k) && value !== "true" && value !== "false") return { error: `Invalid value for ${k}` };
+    if (k === "low_stock_threshold" || k === "expiry_warn_days" || k === "margin_alert_pct") {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n) || n < 0 || n > 1000) return { error: `${k.replace(/_/g, " ")} must be a number.` };
+      value = String(n);
+    }
     if (k === "order_types") {
       const types = parseOrderTypes(value);
       if (!types.delivery && !types.takeaway && !types.dineIn) {
@@ -336,4 +341,21 @@ export async function resetStaffPassword(emailInput: string, password: string): 
   } catch (err) {
     return fail(errorMessage(err));
   }
+}
+
+/** Everything the Settings screen shows, loaded in one call from the browser. */
+export async function fetchSettingsPageData() {
+  await authorize("settings");
+  const { getDeliveryPincodes, getRawSettings } = await import("@/lib/settings/server");
+  const { isDefaultUndoPasscode } = await import("@/lib/settings/passcode");
+  const [settings, pincodes, staffResult, defaultPasscode] = await Promise.all([
+    getRawSettings(),
+    getDeliveryPincodes(),
+    createAdminClient().from("staff_members").select("email, name, role, is_active, created_at").order("created_at"),
+    isDefaultUndoPasscode().catch(() => false),
+  ]);
+  const staff = (staffResult.data ?? []).map((s: { email: string; name: string | null; role: StaffRole; is_active: boolean | null }) => ({
+    email: s.email, name: s.name ?? "", role: s.role, is_active: s.is_active !== false,
+  }));
+  return { settings, pincodes, staff, defaultPasscode };
 }

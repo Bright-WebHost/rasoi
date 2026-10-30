@@ -28,6 +28,9 @@ export const SETTING_KEYS = [
   "auto_print",
   "unknown_policy",
   "google_review_url",
+  "low_stock_threshold",
+  "expiry_warn_days",
+  "margin_alert_pct",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -55,6 +58,9 @@ export const DEFAULT_RAW_SETTINGS: RawSettings = {
   auto_print: "false",
   unknown_policy: "If you do not know something, say you will check with the team. Never invent facts or promise availability.",
   google_review_url: "",
+  low_stock_threshold: "5",
+  expiry_warn_days: "7",
+  margin_alert_pct: "20",
 };
 
 export interface OrderTypesEnabled {

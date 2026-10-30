@@ -16,6 +16,8 @@ export type FeaturePermission =
   | "view_riders"
   | "manage_riders"
   | "manage_menu"
+  | "manage_stock"
+  | "view_financials"
   | "chat"
   | "contacts"
   | "blast"
@@ -30,6 +32,8 @@ export type PageRoute =
   | "/dashboard/kitchen"
   | "/dashboard/riders"
   | "/dashboard/menu"
+  | "/dashboard/stock"
+  | "/dashboard/pnl"
   | "/dashboard/chat"
   | "/dashboard/contacts"
   | "/dashboard/blast"
@@ -41,12 +45,12 @@ export const ROLE_PERMISSIONS: Record<StaffRole, FeaturePermission[]> = {
     "view_orders_full", "view_orders_basic", "kitchen_screen", "accept_delivery",
     "mark_ready", "assign_rider", "handover", "mark_delivered", "cancel_order",
     "collect_cash", "pos", "tables", "view_riders", "manage_riders", "manage_menu",
-    "chat", "contacts", "blast", "analytics", "reopen_cancelled", "settings"
+    "chat", "contacts", "blast", "analytics", "reopen_cancelled", "settings", "manage_stock", "view_financials"
   ],
   counter: [
     "view_orders_full", "accept_delivery", "mark_ready", "assign_rider",
     "handover", "mark_delivered", "cancel_order", "collect_cash", "pos",
-    "tables", "view_riders"
+    "tables", "view_riders", "manage_stock"
   ],
   waiter: [
     "pos", "tables"
@@ -59,11 +63,11 @@ export const ROLE_PERMISSIONS: Record<StaffRole, FeaturePermission[]> = {
 export const ROLE_PAGES: Record<StaffRole, PageRoute[]> = {
   admin: [
     "/dashboard/orders", "/dashboard/pos", "/dashboard/tables", "/dashboard/kitchen",
-    "/dashboard/riders", "/dashboard/menu", "/dashboard/chat", "/dashboard/contacts",
+    "/dashboard/riders", "/dashboard/menu", "/dashboard/stock", "/dashboard/pnl", "/dashboard/chat", "/dashboard/contacts",
     "/dashboard/blast", "/dashboard/stats", "/dashboard/settings"
   ],
   counter: [
-    "/dashboard/orders", "/dashboard/pos", "/dashboard/tables", "/dashboard/kitchen"
+    "/dashboard/orders", "/dashboard/pos", "/dashboard/tables", "/dashboard/kitchen", "/dashboard/stock"
   ],
   waiter: [
     "/dashboard/pos", "/dashboard/tables"
@@ -88,6 +92,8 @@ export const NAV_ITEMS = [
   { href: "/dashboard/tables", label: "Tables", permission: "tables" as FeaturePermission, icon: "UtensilsCrossed" },
   { href: "/dashboard/riders", label: "Riders", permission: "view_riders" as FeaturePermission, icon: "Bike" },
   { href: "/dashboard/menu", label: "Menu", permission: "manage_menu" as FeaturePermission, icon: "Menu" },
+  { href: "/dashboard/stock", label: "Stock", permission: "manage_stock" as FeaturePermission, icon: "Package" },
+  { href: "/dashboard/pnl", label: "P&L", permission: "view_financials" as FeaturePermission, icon: "ChartNoAxesCombined" },
   { href: "/dashboard/chat", label: "Chat", permission: "chat" as FeaturePermission, icon: "MessageSquare" },
   { href: "/dashboard/contacts", label: "Contacts", permission: "contacts" as FeaturePermission, icon: "Users" },
   { href: "/dashboard/blast", label: "Blast", permission: "blast" as FeaturePermission, icon: "Megaphone" },

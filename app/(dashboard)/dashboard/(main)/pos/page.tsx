@@ -1,16 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import PosBoard from "./PosBoard";
+import PosView from "./PosView";
 
-export const metadata = {
-  title: "POS | Rasoi",
-};
-
-export default async function PosPage() {
-  await requirePage("/dashboard/pos");
-
-  return (
-    <div className="flex-1 w-full flex flex-col min-h-0 bg-[#F8FAFB]">
-      <PosBoard />
-    </div>
-  );
+export default function Page() {
+  return <PosView />;
 }

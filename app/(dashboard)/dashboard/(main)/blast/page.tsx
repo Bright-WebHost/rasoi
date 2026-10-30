@@ -1,12 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import BlastBoard from "./BlastBoard";
+import BlastView from "./BlastView";
 
-export default async function BlastPage() {
-  await requirePage("/dashboard/blast");
-
-  return (
-    <div className="w-full">
-      <BlastBoard />
-    </div>
-  );
+export default function Page() {
+  return <BlastView />;
 }

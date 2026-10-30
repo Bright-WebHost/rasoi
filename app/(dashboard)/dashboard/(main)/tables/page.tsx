@@ -1,8 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import TablesBoard from "./TablesBoard";
+import TablesView from "./TablesView";
 
-export default async function TablesPage() {
-  await requirePage("/dashboard/tables");
-
-  return <TablesBoard />;
+export default function Page() {
+  return <TablesView />;
 }

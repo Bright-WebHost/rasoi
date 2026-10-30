@@ -86,7 +86,8 @@ export async function fetchRidersPageData(timeFilter: TimeFilter = "this_week") 
     // 2. Fetch orders assigned to riders
     let ordersQuery = adminClient
       .from("orders")
-      .select("id, order_number, total, collected_amount, is_collected, status, rider_id, created_at, payment_status")
+      .select("id, order_number, total, collected_amount, is_collected, status, rider_id, created_at, payment_status, order_type")
+      .eq("order_type", "delivery")
       .not("rider_id", "is", null);
 
     const { start, end } = getTimeRange(timeFilter);
@@ -112,9 +113,10 @@ export async function fetchRidersPageData(timeFilter: TimeFilter = "this_week") 
 
       // Handed over to store: recorded in riders.cash_collected or orders.collected_amount
       // In all_time, use rider's cash_collected column; in time filter, use delivered orders with is_collected
-      const handedOverFromOrders = riderHeldCash
-        .filter((o: any) => o.is_collected)
-        .reduce((sum: number, o: any) => sum + (Number(o.collected_amount != null && o.collected_amount > 0 ? o.collected_amount : o.total) || 0), 0);
+      const handedOverFromOrders = riderHeldCash.reduce((sum: number, o: any) => {
+        const recorded = Number(o.collected_amount || 0);
+        return sum + (recorded > 0 ? recorded : o.is_collected ? Number(o.total || 0) : 0);
+      }, 0);
 
       const handedOver = timeFilter === "all_time" 
         ? Math.max(Number(r.cash_collected || 0), handedOverFromOrders)
@@ -180,7 +182,7 @@ export async function fetchRiders() {
 
     const { data: pendingOrders } = await adminClient
       .from("orders")
-      .select("rider_id, total")
+      .select("rider_id, total, collected_amount, payment_status")
       .eq("order_type", "delivery")
       .eq("status", "delivered")
       .eq("is_collected", false)
@@ -189,8 +191,8 @@ export async function fetchRiders() {
     if (pendingOrders) {
       riders.forEach(rider => {
         const riderPending = pendingOrders
-          .filter((o: any) => o.rider_id === rider.id)
-          .reduce((sum: number, o: any) => sum + (Number(o.total) || 0), 0);
+          .filter((o: any) => o.rider_id === rider.id && o.payment_status !== "unpaid" && o.payment_status !== "paid_later")
+          .reduce((sum: number, o: any) => sum + Math.max(0, (Number(o.total) || 0) - (Number(o.collected_amount) || 0)), 0);
         rider.pending_cash = riderPending;
       });
     }
@@ -249,13 +251,39 @@ export async function toggleRiderStatus(id: string, is_active: boolean) {
   }
 }
 
-export async function collectRiderCash(riderId: string, amountToCollect?: number) {
-  await authorize("manage_riders");
+export async function collectRiderCash(riderId: string, amountToCollect?: number, note?: string) {
+  const staff = await authorize("manage_riders");
+  if (!riderId || (amountToCollect != null && (!Number.isFinite(amountToCollect) || amountToCollect <= 0))) {
+    return { success: false, error: "Enter a valid collection amount." };
+  }
+  const safeNote = typeof note === "string" ? note.trim() : "";
+  if (safeNote.length > 200) return { success: false, error: "Keep the note under 200 characters." };
 
   try {
     const adminClient = createAdminClient();
+    const rpc = await adminClient.rpc("collect_rider_cash_atomic", {
+      p_rider_id: riderId,
+      p_amount: amountToCollect ?? null,
+      p_note: safeNote || null,
+      p_received_by: staff.email.split("@")[0],
+    });
 
-    // Fetch rider current record
+    if (!rpc.error) {
+      const result = rpc.data as { collected_amount?: number; remaining_owed?: number };
+      const collectedAmount = Number(result?.collected_amount || 0);
+      if (collectedAmount <= 0) return { success: false, error: "There is no outstanding rider cash to collect." };
+      return {
+        success: true,
+        collectedAmount,
+        remainingOwes: Number(result?.remaining_owed || 0),
+        ledgerRecorded: true,
+      };
+    }
+
+    const missingRpc = rpc.error.code === "PGRST202" || /could not find the function|function .* does not exist/i.test(rpc.error.message);
+    if (!missingRpc) throw rpc.error;
+
+    // Older deployments can still collect cash until the stock/P&L migration is applied.
     const { data: rider, error: riderFetchError } = await adminClient
       .from("riders")
       .select("id, name, cash_collected")
@@ -269,6 +297,7 @@ export async function collectRiderCash(riderId: string, amountToCollect?: number
       .from("orders")
       .select("id, total, collected_amount, is_collected, payment_status")
       .eq("rider_id", riderId)
+      .eq("order_type", "delivery")
       .eq("status", "delivered")
       .order("created_at", { ascending: true });
 
@@ -276,85 +305,76 @@ export async function collectRiderCash(riderId: string, amountToCollect?: number
 
     // Only deliveries where the rider actually took the cash (not "Unpaid" / paid to the shop)
     const riderHeldOrders = (deliveredOrders || []).filter((o: any) => o.payment_status !== "unpaid" && o.payment_status !== "paid_later");
-    const totalDelivered = riderHeldOrders.reduce(
-      (sum: number, o: any) => sum + (Number(o.total) || 0),
-      0
-    );
-    const existingHandedOver = Number(rider.cash_collected || 0);
-    const currentOwes = Math.max(0, totalDelivered - existingHandedOver);
-
-    // If amountToCollect is not provided or >= currentOwes, collect full owes
-    const collectAmount =
-      amountToCollect != null && amountToCollect > 0
-        ? Math.min(amountToCollect, currentOwes)
-        : currentOwes;
-
-    const newCashCollected = existingHandedOver + collectAmount;
+    const owed = (order: any) => {
+      if (order.is_collected && Number(order.collected_amount || 0) === 0) return 0;
+      return Math.max(0, Number(order.total || 0) - Number(order.collected_amount || 0));
+    };
+    const currentOwes = riderHeldOrders.reduce((sum: number, o: any) => sum + owed(o), 0);
+    const collectAmount = Math.min(amountToCollect ?? currentOwes, currentOwes);
+    if (collectAmount <= 0) return { success: false, error: "There is no outstanding rider cash to collect." };
+    let budget = collectAmount;
+    for (const order of riderHeldOrders) {
+      const due = owed(order);
+      if (!due || budget <= 0) continue;
+      const previous = Number(order.collected_amount || 0);
+      const added = Math.min(due, budget);
+      const next = previous + added;
+      const { error } = await adminClient.from("orders").update({
+        collected_amount: next,
+        is_collected: next >= Number(order.total || 0),
+        updated_at: new Date().toISOString(),
+      }).eq("id", order.id);
+      if (error) throw error;
+      budget -= added;
+    }
     const remainingOwes = Math.max(0, currentOwes - collectAmount);
-
-    // 1. Update the rider record
-    const { error: riderUpdateError } = await adminClient
-      .from("riders")
-      .update({
-        cash_collected: newCashCollected,
-        pending_cash: remainingOwes,
-      })
-      .eq("id", riderId);
-
+    const { error: riderUpdateError } = await adminClient.from("riders").update({
+      cash_collected: Number(rider.cash_collected || 0) + collectAmount,
+      pending_cash: remainingOwes,
+    }).eq("id", riderId);
     if (riderUpdateError) throw riderUpdateError;
 
-    // 2. Mark uncollected delivered orders as collected up to the collected amount
-    let budget = collectAmount;
-    const uncollectedOrders = riderHeldOrders.filter((o: any) => !o.is_collected);
-
-    for (const order of uncollectedOrders) {
-      if (budget <= 0) break;
-      const orderTotal = Number(order.total || 0);
-      if (budget >= orderTotal) {
-        await adminClient
-          .from("orders")
-          .update({
-            is_collected: true,
-            collected_amount: orderTotal,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", order.id);
-        budget -= orderTotal;
-      } else {
-        await adminClient
-          .from("orders")
-          .update({
-            is_collected: true,
-            collected_amount: budget,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", order.id);
-        budget = 0;
-      }
-    }
-
-    // If remaining owes is 0, ensure all delivered orders are marked collected
-    if (remainingOwes === 0) {
-      await adminClient
-        .from("orders")
-        .update({
-          is_collected: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("rider_id", riderId)
-        .eq("status", "delivered")
-        .eq("is_collected", false)
-        .or("payment_status.is.null,payment_status.eq.collected");
+    let ledgerRecorded = false;
+    if (collectAmount > 0) {
+      const { error: ledgerError } = await adminClient.from("rider_payments").insert({
+        rider_id: riderId,
+        rider_name: rider.name,
+        amount: collectAmount,
+        note: safeNote || null,
+        received_by: staff.email.split("@")[0],
+      });
+      ledgerRecorded = !ledgerError;
     }
 
     return {
       success: true,
       collectedAmount: collectAmount,
       remainingOwes,
+      ledgerRecorded,
     };
   } catch (error: any) {
     console.error("[collectRiderCash] Error:", error);
     return { success: false, error: error.message || "Failed to collect cash" };
+  }
+}
+
+export async function fetchRiderPaymentLedger() {
+  await authorize("view_riders");
+  try {
+    const adminClient = createAdminClient();
+    const { data, error } = await adminClient
+      .from("rider_payments")
+      .select("id,rider_id,rider_name,amount,note,received_by,created_at")
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      const migrated = error.code !== "42P01" && error.code !== "PGRST205" && !/does not exist|schema cache/i.test(error.message);
+      return { success: false, migrated, error: migrated ? "Could not load rider handovers." : "Apply the stock and P&L migration to enable the cash ledger." };
+    }
+    return { success: true, migrated: true, payments: data || [] };
+  } catch (error: any) {
+    console.error("[fetchRiderPaymentLedger] Error:", error);
+    return { success: false, migrated: true, error: error.message || "Could not load rider handovers." };
   }
 }
 

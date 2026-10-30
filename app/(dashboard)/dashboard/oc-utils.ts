@@ -23,6 +23,7 @@ export function rangeStart({ range, from }: RangeState) {
   const off = midnight.getTime() - 19800000 - n.getTimezoneOffset() * 60000;
   if (range === "today") return new Date(off);
   if (range === "yesterday") return new Date(off - 86400000);
+  // Oceana's ranges are rolling: "This Week" = last 7 days, "This Month" = last 30.
   if (range === "week") return new Date(off - 6 * 86400000);
   if (range === "month") return new Date(off - 29 * 86400000);
   if (range === "custom" && from) return new Date(from + "T00:00:00+05:30");
@@ -33,7 +34,7 @@ export function inRange(o: { created_at: string }, r: RangeState) {
   const t = new Date(o.created_at).getTime();
   const s = rangeStart(r).getTime();
   if (r.range === "yesterday") return t >= s && t < s + 86400000;
-  if (r.range === "custom" && r.to) return t >= s && t < new Date(r.to + "T23:59:59+05:30").getTime();
+  if (r.range === "custom" && r.to) return t >= s && t < new Date(r.to + "T00:00:00+05:30").getTime() + 86400000;
   return t >= s;
 }
 

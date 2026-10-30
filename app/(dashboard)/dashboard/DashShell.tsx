@@ -12,7 +12,7 @@ import { canAccessPage, type PageRoute, type StaffRole } from "@/lib/auth/permis
 import { StaffProvider } from "@/components/providers/StaffProvider";
 import { OrderManagerProvider, useOrderManager } from "./OrderManagerProvider";
 import NewOrderAlert from "./NewOrderAlert";
-import GlobalAssignRiderPopup from "./GlobalAssignRiderPopup";
+import ReadyRiderPrompt from "./ReadyRiderPrompt";
 import type { RangeState } from "./oc-utils";
 
 const NAV: Array<[PageRoute, string]> = [
@@ -22,6 +22,8 @@ const NAV: Array<[PageRoute, string]> = [
   ["/dashboard/kitchen", "👨‍🍳 Kitchen"],
   ["/dashboard/chat", "💬 Live Chat"],
   ["/dashboard/menu", "📋 Menu"],
+  ["/dashboard/stock", "📦 Stock"],
+  ["/dashboard/pnl", "💰 P&L"],
   ["/dashboard/riders", "🛵 Riders"],
   ["/dashboard/stats", "📊 Analytics"],
   ["/dashboard/contacts", "👥 Contacts"],
@@ -129,6 +131,24 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
   const { refreshOrders, lastUpdated, toggleSound, soundEnabled } = useOrderManager();
   const [navOpen, setNavOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // Phone/tablet: one deliberate tap per device arms sound + keeps the screen awake (Oceana's shift gate).
+  const [gate, setGate] = useState(() => window.matchMedia("(max-width:860px)").matches && localStorage.getItem("rasoi_shift_ok") !== "1");
+  const keepAwake = useCallback(async () => {
+    try { await (navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<unknown> } }).wakeLock?.request("screen"); } catch { /* unsupported */ }
+  }, []);
+  useEffect(() => {
+    void keepAwake();
+    const onVis = () => { if (!document.hidden) void keepAwake(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [keepAwake]);
+  const startShift = () => {
+    localStorage.setItem("rasoi_shift_ok", "1");
+    if (!soundEnabled) toggleSound();
+    try { if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission(); } catch { /* unsupported */ }
+    void keepAwake();
+    setGate(false);
+  };
 
   const nav = NAV.filter(([href]) => canAccessPage(staff.role, href));
   // Client-side page guard (RLS is the real boundary): send staff to the first screen they may use.
@@ -197,8 +217,19 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
           {allowed ? children : null}
         </main>
       </div>
+      {gate ? (
+        <div id="shiftgate">
+          <div>
+            <div className="tile">R</div>
+            <h1>Start your shift</h1>
+            <p>This device will stay awake and ring on every new order for the rest of the shift. Tap once to begin.</p>
+            <button className="btn" onClick={startShift}>🔔 Start shift — enable sound</button>
+            <button className="btn ghost sgskip" onClick={() => setGate(false)}>Skip for now</button>
+          </div>
+        </div>
+      ) : null}
       <NewOrderAlert />
-      <GlobalAssignRiderPopup />
+      <ReadyRiderPrompt />
       {toasts.map((t) => <div key={t.id} className="toast">{t.text}</div>)}
     </div>
   );

@@ -29,6 +29,13 @@ test('forwarding is off unless explicitly enabled with an https url and secret',
   assert.deepEqual(forwarderConfig({ RASOI_WHATSAPP_FORWARDING_ENABLED: 'true', N8N_WHATSAPP_INBOUND_WEBHOOK_URL: config.url, RASOI_WHATSAPP_INBOUND_SECRET: 's', NEXT_PUBLIC_SITE_URL: 'https://rasoi.example.test' }), { url: config.url, secret: 's', appBaseUrl: 'https://rasoi.example.test' })
 })
 
+test('resolves the app URL from Vercel settings when NEXT_PUBLIC_SITE_URL is absent or insecure', () => {
+  const baseEnv = { RASOI_WHATSAPP_FORWARDING_ENABLED: 'true', N8N_WHATSAPP_INBOUND_WEBHOOK_URL: config.url, RASOI_WHATSAPP_INBOUND_SECRET: 's' }
+  assert.equal(forwarderConfig({ ...baseEnv, VERCEL_PROJECT_PRODUCTION_URL: 'rasoi-production.example.test' }).appBaseUrl, 'https://rasoi-production.example.test')
+  assert.equal(forwarderConfig({ ...baseEnv, NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' }).appBaseUrl, 'https://rasoi-pied.vercel.app')
+  assert.equal(forwarderConfig(baseEnv).appBaseUrl, 'https://rasoi-pied.vercel.app')
+})
+
 test('extracts the rider phone, order number, and payment choice from YCloud buttons', () => {
   assert.deepEqual(riderDeliveryAction({
     data: { whatsappInboundMessage: { from: '+919999999999', type: 'interactive', interactive: { button_reply: { id: 'deliver_collected_RAS-123' } } } },

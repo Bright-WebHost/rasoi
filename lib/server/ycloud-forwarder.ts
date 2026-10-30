@@ -3,6 +3,7 @@
 // Delivery is at-least-once: consumers must treat x-rasoi-event-id as an idempotency key.
 
 export type ForwarderConfig = { url: string; secret: string; appBaseUrl: string }
+const fallbackAppBaseUrl = 'https://rasoi-pied.vercel.app'
 
 type InboxRow = { id: string; provider_event_id: string; attempts: number; payload: unknown }
 type ForwarderAdminClient = {
@@ -18,7 +19,7 @@ export function forwarderConfig(env: Record<string, string | undefined> = proces
   const url = env.N8N_WHATSAPP_INBOUND_WEBHOOK_URL?.trim() || ''
   const secret = env.RASOI_WHATSAPP_INBOUND_SECRET?.trim() || ''
   if (!url.startsWith('https://') || !secret) return null
-  return { url, secret, appBaseUrl: env.NEXT_PUBLIC_SITE_URL?.trim() || '' }
+  return { url, secret, appBaseUrl: resolveAppBaseUrl(env) }
 }
 
 type RiderDeliveryAction =
@@ -28,6 +29,25 @@ type RiderDeliveryAction =
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function normalizeHttpsBaseUrl(value: string | undefined): string {
+  const candidate = value?.trim()
+  if (!candidate) return ''
+  const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(candidate) ? candidate : `https://${candidate}`
+  try {
+    const url = new URL(withProtocol)
+    return url.protocol === 'https:' ? url.origin : ''
+  } catch {
+    return ''
+  }
+}
+
+function resolveAppBaseUrl(env: Record<string, string | undefined>): string {
+  return normalizeHttpsBaseUrl(env.NEXT_PUBLIC_SITE_URL)
+    || normalizeHttpsBaseUrl(env.VERCEL_PROJECT_PRODUCTION_URL)
+    || normalizeHttpsBaseUrl(env.VERCEL_URL)
+    || fallbackAppBaseUrl
 }
 
 /** Identify rider completion buttons before an inbound event reaches the customer AI workflow. */

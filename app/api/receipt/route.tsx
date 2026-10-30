@@ -25,9 +25,11 @@ export async function GET(request: NextRequest) {
       return new Response('Order not found', { status: 404 })
     }
 
-    const rawItems = (order.order_items && order.order_items.length > 0)
-      ? order.order_items
-      : (Array.isArray(order.items_json) ? order.items_json : [])
+    // Table rounds are appended to items_json only, so dine-in bills must read from it.
+    const jsonItems = Array.isArray(order.items_json) ? order.items_json : []
+    const rawItems = (order.order_type === 'dine-in' && jsonItems.length > 0) || !order.order_items?.length
+      ? jsonItems
+      : order.order_items
     const items = rawItems.map((item: any, idx: number) => ({
       id: item.id || `item-${idx}`,
       item_name: item.item_name || item.name || 'Item',

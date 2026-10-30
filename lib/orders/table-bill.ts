@@ -1,29 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendWhatsAppText } from "@/lib/server/ycloud";
+import { sendWhatsAppImage } from "@/lib/server/ycloud";
 
-function rupees(value: unknown) {
-  return `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-}
-
-function buildTableBillMessage(order: Record<string, any>) {
-  const items = Array.isArray(order.items_json) ? order.items_json : [];
-  const itemLines = items.map((item: Record<string, any>) => {
-    const name = [item.item_name || item.name || "Item", item.variant_name].filter(Boolean).join(" · ");
-    const quantity = Math.max(1, Number(item.quantity) || 1);
-    const unitPrice = Number(item.unit_price ?? item.price ?? 0);
-    return `• ${quantity} × ${name} — ${rupees(unitPrice * quantity)}`;
-  });
-
-  return [
-    `*Rasoi — Final Table Bill*`,
-    `Table: ${order.table_number || "Dine-in"}`,
-    `Order: ${order.order_number}`,
-    "",
-    ...(itemLines.length ? itemLines : [String(order.items || "Items")]),
-    "",
-    `*Total: ${rupees(order.total)}*`,
-    "Settled and closed. Thank you for dining with us!",
-  ].join("\n");
+function receiptImageUrl(orderNumber: string) {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://rasoi-pied.vercel.app").replace(/\/+$/, "");
+  // Cache-buster: the receipt image is cached, and table rounds may have changed it since any earlier render.
+  return `${base}/api/receipt?order_number=${encodeURIComponent(orderNumber)}&v=${Date.now()}`;
 }
 
 /** Send the final itemized bill for a closed dine-in order, recording failures for retry. */
@@ -31,7 +12,7 @@ export async function sendClosedTableBill(orderId: string) {
   const adminClient = createAdminClient();
   const { data: order, error } = await adminClient
     .from("orders")
-    .select("id, order_number, order_type, table_number, customer_phone, items, items_json, total, status, whatsapp_bill_sent_at")
+    .select("id, order_number, order_type, table_number, customer_phone, status, whatsapp_bill_sent_at")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -49,7 +30,7 @@ export async function sendClosedTableBill(orderId: string) {
     return { success: false, sent: false, error: message };
   }
 
-  const result = await sendWhatsAppText(phone, buildTableBillMessage(order));
+  const result = await sendWhatsAppImage(phone, receiptImageUrl(order.order_number), "Thank you for dining with us! 🙏");
   if (!result.success) {
     await adminClient.from("orders").update({ whatsapp_bill_error: result.error }).eq("id", orderId);
     return { success: false, sent: false, error: result.error || "WhatsApp send failed." };

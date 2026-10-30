@@ -11,8 +11,9 @@ import type { StaffUser } from "@/lib/auth/staff";
 import { canAccessPage, type PageRoute, type StaffRole } from "@/lib/auth/permissions";
 import { StaffProvider } from "@/components/providers/StaffProvider";
 import { OrderManagerProvider, useOrderManager } from "./OrderManagerProvider";
-import { GlobalNewOrderPopup } from "./GlobalNewOrderPopup";
+import NewOrderAlert from "./NewOrderAlert";
 import GlobalAssignRiderPopup from "./GlobalAssignRiderPopup";
+import type { RangeState } from "./oc-utils";
 
 const NAV: Array<[PageRoute, string]> = [
   ["/dashboard/pos", "🛒 POS"],
@@ -33,6 +34,9 @@ type OcContext = {
   settings: Record<string, string>;
   setSetting: (key: string, value: string) => void;
   toast: (message: string) => void;
+  /** Date filter shared by Orders, Riders, Analytics, Stock and P&L, like Oceana's RANGE. */
+  range: RangeState;
+  setRange: (r: RangeState) => void;
 };
 
 const Oc = createContext<OcContext | null>(null);
@@ -48,6 +52,7 @@ export default function DashShell({ fontClass, children }: { fontClass: string; 
   const sb = useRef(createClient());
   const [staff, setStaff] = useState<StaffUser | null>(null);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [range, setRange] = useState<RangeState>({ range: "today", from: "", to: "" });
   const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([]);
 
   useEffect(() => {
@@ -80,7 +85,10 @@ export default function DashShell({ fontClass, children }: { fontClass: string; 
   }, []);
   const setSetting = useCallback((key: string, value: string) => setSettings((s) => ({ ...s, [key]: value })), []);
 
-  const ctx = useMemo(() => (staff ? { staff, settings, setSetting, toast } : null), [staff, settings, setSetting, toast]);
+  const ctx = useMemo(
+    () => (staff ? { staff, settings, setSetting, toast, range, setRange } : null),
+    [staff, settings, setSetting, toast, range],
+  );
 
   if (!ctx) {
     return (
@@ -123,6 +131,12 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
   const [refreshing, setRefreshing] = useState(false);
 
   const nav = NAV.filter(([href]) => canAccessPage(staff.role, href));
+  // Client-side page guard (RLS is the real boundary): send staff to the first screen they may use.
+  const page = (NAV.find(([href]) => pathname === href || pathname.startsWith(href + "/"))?.[0] ?? "/dashboard/orders") as PageRoute;
+  const allowed = canAccessPage(staff.role, page);
+  useEffect(() => {
+    if (!allowed && nav[0]) router.replace(nav[0][0]);
+  }, [allowed, nav, router]);
   const current = NAV.find(([href]) => pathname === href || pathname.startsWith(href + "/"));
   const title = current ? current[1] : "🧾 Orders";
   const updated = lastUpdated
@@ -138,6 +152,11 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
   const signOut = async () => {
     await createClient().auth.signOut();
     router.replace("/dashboard/login");
+  };
+  const sound = () => {
+    toggleSound();
+    // Like Oceana: a one-time notification grant lets new orders ring before anyone taps the page.
+    try { if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission(); } catch { /* unsupported */ }
   };
   const soundLabel = soundEnabled ? "🔔 Sound on" : "🔔 Enable sound";
 
@@ -155,7 +174,7 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
           <div className="side-foot">
             <div className="roletag">{staff.email.split("@")[0]} · {staff.role}</div>
             <button onClick={refresh}>{refreshing ? "↻ Refreshing…" : "↻ Refresh Now"}</button>
-            <button onClick={toggleSound}>{soundLabel}</button>
+            <button onClick={sound}>{soundLabel}</button>
             <button onClick={signOut}>Sign out</button>
           </div>
         </aside>
@@ -170,15 +189,15 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
               <span className="pilb warn">● Staff online</span>
             </div>
             <div className="mobonly">
-              <button className="btn sm ghost" onClick={toggleSound}>🔔</button>
+              <button className="btn sm ghost" onClick={sound}>🔔</button>
               <button className="btn sm ghost" onClick={refresh}>↻</button>
               <button className="btn sm ghost" onClick={signOut}>⏻</button>
             </div>
           </div>
-          {children}
+          {allowed ? children : null}
         </main>
       </div>
-      <GlobalNewOrderPopup />
+      <NewOrderAlert />
       <GlobalAssignRiderPopup />
       {toasts.map((t) => <div key={t.id} className="toast">{t.text}</div>)}
     </div>

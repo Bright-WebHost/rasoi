@@ -1,8 +1,5 @@
-import { requirePage } from "@/lib/auth/staff";
-import OrdersBoard from "./OrdersBoard";
+import OrdersView from "./OrdersView";
 
-export default async function OrdersPage() {
-  await requirePage("/dashboard/orders");
-
-  return <OrdersBoard />;
+export default function OrdersPage() {
+  return <OrdersView />;
 }

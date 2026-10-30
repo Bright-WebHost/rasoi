@@ -7,9 +7,10 @@ import { displayCategory } from "@/lib/menu-data";
 import { CartItem, CustomerDetails, MenuItem, OrderType, PaymentMethod } from "@/lib/types";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { checkOrderRules, closedMessage, deliveryFeeFor, isOpenAt, type CustomerOrderType, type PublicSettings } from "@/lib/settings";
+import { normalizeWhatsAppPhone } from "@/lib/phone/whatsapp";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
-const whatsAppNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, "");
+const whatsAppNumber = normalizeWhatsAppPhone(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
 const whatsAppUrl = whatsAppNumber ? `https://wa.me/${whatsAppNumber}` : "/";
 const whatsAppLabel = whatsAppNumber ? "Back to WhatsApp" : "Return to Rasoi";
 const initialDetails: CustomerDetails = { name: "", phone: "", address: "", landmark: "", pincode: "", pickupDate: "", pickupTime: "19:00", payment: "cash" };

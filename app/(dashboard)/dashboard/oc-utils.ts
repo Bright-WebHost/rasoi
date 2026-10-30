@@ -58,12 +58,13 @@ export function useIsMobile() {
   return useSyncExternalStore(subscribe, () => window.matchMedia(mobileQuery).matches, () => false);
 }
 
-export type LineItem = { name: string; quantity: number; lineTotal: number; notes: string | null; round: number };
+export type LineItem = { name: string; quantity: number; lineTotal: number; notes: string | null; round: number; isNew: boolean };
 
 /** Structured lines from items_json; falls back to the text summary for old rows. */
 export function lineItemsOf(o: Pick<DashboardOrder, "items_json" | "items">): LineItem[] {
   const json = Array.isArray(o.items_json) ? o.items_json : [];
   if (json.length) {
+    const maxRound = Math.max(...json.map((raw) => Number((raw as Record<string, unknown>).round) || 1));
     return json.map((raw) => {
       const i = raw as Record<string, unknown>;
       const qty = Math.max(1, Number(i.quantity) || 1);
@@ -74,8 +75,10 @@ export function lineItemsOf(o: Pick<DashboardOrder, "items_json" | "items">): Li
         lineTotal: Number(i.unit_price ?? i.price ?? 0) * qty,
         notes: (i.notes as string) || null,
         round: Number(i.round) || 1,
+        // A just-added round (or the latest one once a table has more than one) is highlighted.
+        isNew: Boolean(i.is_new_addition) || (maxRound > 1 && (Number(i.round) || 1) === maxRound),
       };
     });
   }
-  return String(o.items || "").split(", ").filter(Boolean).map((t) => ({ name: t, quantity: 0, lineTotal: 0, notes: null, round: 1 }));
+  return String(o.items || "").split(", ").filter(Boolean).map((t) => ({ name: t, quantity: 0, lineTotal: 0, notes: null, round: 1, isNew: false }));
 }

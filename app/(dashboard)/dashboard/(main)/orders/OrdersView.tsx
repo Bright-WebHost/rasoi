@@ -26,6 +26,8 @@ const COLS: Col[] = [
 const DECLINE_REASONS = ["Item unavailable", "Kitchen full", "Outside delivery area", "Closing soon"];
 
 const isDine = (o: DashboardOrder) => channelOf(o) === "dine-in";
+/** Rider tapped "Unpaid": delivered, but the customer still owes the shop. */
+const isUnpaid = (o: DashboardOrder) => o.order_type === "delivery" && o.status === "delivered" && o.payment_status === "unpaid";
 const canEditOrder = (o: DashboardOrder) => o.source === "pos" && ["new", "preparing"].includes(o.status);
 const cancelReasonText = (o: DashboardOrder) => {
   const raw = String(o.cancel_reason || "");
@@ -55,8 +57,11 @@ function Lines({ o }: { o: DashboardOrder }) {
     <>
       {lineItemsOf(o).map((l, i) => (
         <div key={i}>
-          <div className="li"><span>{l.quantity ? `${l.name} ×${l.quantity}` : l.name}</span><span>{l.lineTotal ? rs(l.lineTotal) : ""}</span></div>
-          {l.notes ? <div className="linote">{l.notes}</div> : null}
+          <div className={`li${l.isNew ? " newr" : ""}`}>
+            <span>{l.quantity ? `${l.name} ×${l.quantity}` : l.name}{l.isNew ? <span className="newtag">ROUND {l.round}</span> : null}</span>
+            <span>{l.lineTotal ? rs(l.lineTotal) : ""}</span>
+          </div>
+          {l.notes ? <div className="linote">📝 {l.notes}</div> : null}
         </div>
       ))}
     </>
@@ -195,6 +200,7 @@ export default function OrdersView() {
           <span className={`tag ${ch === "delivery" ? "dl" : ch === "dine-in" ? "din" : "tk"}`}>{ch}{o.table_number ? " · T" + o.table_number : ""}</span>
           {o.source ? <span className="tag">{o.source}</span> : null}
           {amended ? <span className="tag am">Amended ×{o.amendment_count}</span> : null}
+          {isUnpaid(o) ? <span className="tag unpaid">⚠ Unpaid {rs(o.total)}</span> : null}
           <AgeTag o={o} />
         </div>
         {col?.slide ? <Slide label={col.slide} color={col.color} onDone={() => slideNext(o, col)} /> : null}
@@ -203,7 +209,8 @@ export default function OrdersView() {
         {READY.includes(o.status) && !o.is_collected ? (
           <div className="money due">💵 Collect {rs(o.total)} {ch === "delivery" ? "on delivery" : "at the counter"}</div>
         ) : null}
-        {o.is_collected && ch !== "dine-in" ? <div className="money">✓ {rs(o.collected_amount || o.total)} collected</div> : null}
+        {isUnpaid(o) ? <div className="money bad">⚠ Customer didn&apos;t pay the rider ({rs(o.total)})</div> : null}
+        {o.is_collected && ch !== "dine-in" ? <div className="money">✓ {o.payment_status === "paid_later" ? "Paid to the shop" : rs(o.collected_amount || o.total) + " collected"}</div> : null}
         {mini(o, col)}
       </div>
     );
@@ -236,6 +243,21 @@ export default function OrdersView() {
       </div>
     );
   };
+
+  const unpaid = orders.filter(isUnpaid);
+  const unpaidBar = unpaid.length ? (
+    <div className="unpaidbar">
+      <h4>⚠ {unpaid.length} delivered order{unpaid.length > 1 ? "s were" : " was"} not paid. Please follow up with the customer.</h4>
+      {unpaid.map((o) => (
+        <div key={o.id} className="ur">
+          <b>{o.order_number}</b><span>{rs(o.total)}</span><span>{o.customer_name || "Customer"}</span>
+          {o.customer_phone ? <a href={`tel:+${String(o.customer_phone).replace(/\D/g, "")}`}>📞 {o.customer_phone}</a> : null}
+          {o.rider_name ? <span>rider: {o.rider_name}</span> : null}
+          {hasPerm("collect_cash") ? <button className="cashbtn" style={{ padding: "5px 10px", borderRadius: 8, fontSize: 12 }} onClick={() => void markPaid(o)}>💵 Mark paid</button> : null}
+        </div>
+      ))}
+    </div>
+  ) : null;
 
   const modals = (
     <>
@@ -298,6 +320,7 @@ export default function OrdersView() {
           <div className="mostat rev"><span>Revenue</span><b>{rs(rev)}</b></div>
           <div className="mostat"><span>Orders</span><b>{active.length}</b></div>
         </div>
+        {unpaidBar}
         <div className="mtabs">
           {([["new", "New"], ["preparing", "Preparing"], ["ready", "Ready / Out"], ["delivered", "Done"]] as const).map(([k, l]) => (
             <button key={k} className="mtab" aria-pressed={tab === k} onClick={() => setMtab(k)}>
@@ -312,6 +335,7 @@ export default function OrdersView() {
               <div className="mosub">{isDine(o) ? "Table " + (o.table_number || "?") : o.customer_name || "Guest"}{o.customer_phone ? " · " + o.customer_phone : ""}</div>
               {o.address ? <div className="mosub">📍 {o.address}{o.landmark ? ", " + o.landmark : ""}</div> : null}
               <div className="moitems">{o.items}</div>
+              {isUnpaid(o) ? <div className="money bad" style={{ marginBottom: 10 }}>⚠ Unpaid — customer didn&apos;t pay the rider</div> : null}
               <div className="moamt">{rs(o.total)}</div>
               <div className="moacts">{moActions(o)}</div>
             </div>
@@ -341,6 +365,7 @@ export default function OrdersView() {
         <div className="stat p"><span>In The Kitchen</span><b>{live.filter((o) => o.status === "preparing").length}</b></div>
         <div className="stat"><span>Cash To Collect</span><b>{rs(live.filter((o) => !o.is_collected && !isDine(o) && ["preparing", "ready_for_pickup", "out_for_delivery", "delivered"].includes(o.status)).reduce((a, o) => a + Number(o.total), 0))}</b></div>
       </div>
+      {unpaidBar}
       <div className="board">
         <div className="col dinein">
           <div className="colbar"><span>🍽️ Dine-in</span><span className="cnt">{dine.length}</span></div>

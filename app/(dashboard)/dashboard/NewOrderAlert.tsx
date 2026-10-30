@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOrderManager } from "./OrderManagerProvider";
 import { useOc } from "./DashShell";
 import { Slide } from "./OcKit";
-import { ist, rs } from "./oc-utils";
+import { ist, lineItemsOf, rs } from "./oc-utils";
 
 const REASONS = ["Item unavailable", "Kitchen full", "Outside delivery area", "Closing soon"];
 
@@ -19,6 +19,19 @@ export default function NewOrderAlert() {
   const [reason, setReason] = useState("");
   const o = queuedNewOrders[0];
   const notified = useRef(new Set<string>());
+  const { orders } = useOrderManager();
+  const unpaidSeen = useRef<Set<string> | null>(null);
+
+  // A rider tapping "Unpaid" on WhatsApp shows up here as a toast (the Orders board keeps the banner).
+  useEffect(() => {
+    const unpaid = orders.filter((x) => x.order_type === "delivery" && x.status === "delivered" && x.payment_status === "unpaid");
+    if (unpaidSeen.current === null) { unpaidSeen.current = new Set(unpaid.map((x) => x.id)); return; }
+    unpaid.forEach((x) => {
+      if (unpaidSeen.current!.has(x.id)) return;
+      unpaidSeen.current!.add(x.id);
+      toast(`⚠ ${x.order_number}: ${x.rider_name || "rider"} marked it unpaid (${rs(x.total)})`);
+    });
+  }, [orders, toast]);
 
   // Native notification as well as the in-page alarm (works before anyone taps the page).
   useEffect(() => {
@@ -39,9 +52,9 @@ export default function NewOrderAlert() {
 
   if (!o) return null;
   const isUpdate = o.status !== "new" && Array.isArray(o.items_json) && o.items_json.some((i) => (i as { is_new_addition?: boolean }).is_new_addition);
-  const lines = Array.isArray(o.items_json) && o.items_json.length
-    ? (o.items_json as Array<Record<string, unknown>>).map((i) => `${i.is_new_addition ? "🆕 " : ""}${i.item_name} x ${i.quantity}`).join(", ")
-    : o.items;
+  // On a new round only the added lines matter; earlier rounds are already cooking.
+  const allLines = lineItemsOf(o);
+  const lines = isUpdate ? allLines.filter((l) => l.isNew) : allLines;
   const reset = () => { setPrep(20); setPane("accept"); setReason(""); };
 
   const accept = async () => {
@@ -88,7 +101,17 @@ export default function NewOrderAlert() {
           <div className="aline"><span>{o.customer_name || "Guest"}</span><b>{o.customer_phone || ""}</b></div>
           {o.table_number ? <div className="aline"><span>Table</span><b>{o.table_number}</b></div> : null}
           {o.address ? <div className="aline"><span>📍</span><b style={{ textAlign: "right" }}>{o.address}{o.landmark ? ", " + o.landmark : ""}</b></div> : null}
-          <div className="aitems">{lines || "—"}</div>
+          <div className="aitems">
+            {lines.length ? lines.map((l, i) => (
+              <div key={i}>
+                <div className={`ai${l.isNew && !isUpdate ? " newr" : ""}`}>
+                  <span><b>{l.quantity ? l.quantity + " ×" : ""}</b> {l.name}{l.isNew && !isUpdate ? <span className="newtag">ROUND {l.round}</span> : null}</span>
+                  <span>{l.lineTotal ? rs(l.lineTotal) : ""}</span>
+                </div>
+                {l.notes ? <div className="linote">📝 {l.notes}</div> : null}
+              </div>
+            )) : "—"}
+          </div>
           <div className="aline"><span>Payment</span><b>{o.order_type === "delivery" ? "Cash on delivery" : "Cash at counter"}</b></div>
           <div className="aline" style={{ alignItems: "flex-end" }}><span>Total</span><span className="atot">{rs(o.total)}</span></div>
 

@@ -157,12 +157,12 @@ export default function TablesView() {
                     {rounds.map((r) => {
                       const rl = lines.filter((l) => l.round === r);
                       return (
-                        <div key={r} className="rnd">
-                          <div className="rh"><span>Round {r}{r === lastRound ? " · " + String(o.status).replace(/_/g, " ") : " · served"}</span><span>{rs(rl.reduce((s, l) => s + l.lineTotal, 0))}</span></div>
+                        <div key={r} className={`rnd${r > 1 && r === lastRound ? " newr" : ""}`}>
+                          <div className="rh"><span>Round {r}{r > 1 && r === lastRound ? <span className="newtag">NEW</span> : null}{r === lastRound ? " · " + String(o.status).replace(/_/g, " ") : " · served"}</span><span>{rs(rl.reduce((s, l) => s + l.lineTotal, 0))}</span></div>
                           {rl.map((l, i) => (
                             <div key={i}>
                               <div className="li"><span>{l.quantity ? `${l.name} ×${l.quantity}` : l.name}</span><span>{l.lineTotal ? rs(l.lineTotal) : ""}</span></div>
-                              {l.notes ? <div className="linote">{l.notes}</div> : null}
+                              {l.notes ? <div className="linote">📝 {l.notes}</div> : null}
                             </div>
                           ))}
                         </div>

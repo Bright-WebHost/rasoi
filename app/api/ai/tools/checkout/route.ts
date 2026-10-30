@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkOrderRules, closedMessage, deliveryFeeFor, isOpenAt } from '@/lib/settings'
@@ -19,6 +20,7 @@ type CheckoutState = {
   pincode?: string
   last_address?: string
   last_order_number?: string
+  request_id?: string
   at: string
 }
 type Button = { id: string; title: string }
@@ -283,18 +285,25 @@ export async function POST(request: Request) {
 
   const place = async () => {
     if (!state || state.step !== 'confirm' || !state.order_type) return askMode()
+    const requestId = state.request_id || randomUUID()
+    const placingState: CheckoutState = { ...state, step: 'placing', request_id: requestId, at: new Date().toISOString() }
     // Claim the confirm step atomically: a double tap can only place one order.
     if (session) {
-      const { data: claimed } = await db
+      const { data: claimed, error: claimError } = await db
         .from('chat_sessions')
-        .update({ flow_state: { ...flow, checkout: { ...state, step: 'placing', at: new Date().toISOString() } } })
+        .update({ flow_state: { ...flow, checkout: placingState } })
         .eq('id', session.id)
         .eq('flow_state->checkout->>step', 'confirm')
         .select('id')
+      if (claimError) {
+        console.error('[whatsapp-checkout] Could not claim confirmation:', claimError.message)
+        return reply('Sorry, I could not confirm your order just now. Please tap Confirm Order again.')
+      }
       if (!claimed?.length) return reply('⏳ Placing your order…')
     }
     const result = await createCustomerOrder({
       source: 'whatsapp',
+      idempotencyKey: requestId,
       orderType: state.order_type,
       customerName,
       customerPhone,
@@ -303,11 +312,17 @@ export async function POST(request: Request) {
       cartItems: p.lines.map((l) => ({ menu_item_id: l.menu_item_id, quantity: l.quantity })),
     })
     if (!result.ok) {
-      await saveState(fresh({ step: 'confirm', order_type: state.order_type, address: state.address, pincode: state.pincode }))
+      await saveState(fresh({
+        step: 'confirm',
+        order_type: state.order_type,
+        address: state.address,
+        pincode: state.pincode,
+        request_id: requestId,
+      }))
       return reply(`Sorry, I couldn't place the order: ${result.error}`, [B.edit])
     }
     await db.from('ai_carts').update({ items: [], updated_at: new Date().toISOString() }).eq('channel_user_id', channelUserId)
-    await saveState({ step: 'placing', last_order_number: result.orderNumber, at: new Date().toISOString() })
+    await saveState({ ...placingState, last_order_number: result.orderNumber, at: new Date().toISOString() })
     // 22 Oct plan: send nothing on placement (customer gets invoice image + confirmation once restaurant accepts)
     return NextResponse.json({
       ok: true,

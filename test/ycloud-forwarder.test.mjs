@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { drainYCloudInbox, forwarderConfig } from '../lib/server/ycloud-forwarder.ts'
+import { drainYCloudInbox, forwarderConfig, riderDeliveryAction } from '../lib/server/ycloud-forwarder.ts'
 
 const config = { url: 'https://n8n.example.test/webhook/x', secret: 'synthetic-secret' }
 function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'retryable') {
@@ -26,7 +26,17 @@ test('forwarding is off unless explicitly enabled with an https url and secret',
   assert.equal(forwarderConfig({}), null)
   assert.equal(forwarderConfig({ N8N_WHATSAPP_INBOUND_WEBHOOK_URL: config.url, RASOI_WHATSAPP_INBOUND_SECRET: 's' }), null)
   assert.equal(forwarderConfig({ RASOI_WHATSAPP_FORWARDING_ENABLED: 'true', N8N_WHATSAPP_INBOUND_WEBHOOK_URL: 'http://x', RASOI_WHATSAPP_INBOUND_SECRET: 's' }), null)
-  assert.deepEqual(forwarderConfig({ RASOI_WHATSAPP_FORWARDING_ENABLED: 'true', N8N_WHATSAPP_INBOUND_WEBHOOK_URL: config.url, RASOI_WHATSAPP_INBOUND_SECRET: 's' }), { url: config.url, secret: 's' })
+  assert.deepEqual(forwarderConfig({ RASOI_WHATSAPP_FORWARDING_ENABLED: 'true', N8N_WHATSAPP_INBOUND_WEBHOOK_URL: config.url, RASOI_WHATSAPP_INBOUND_SECRET: 's', NEXT_PUBLIC_SITE_URL: 'https://rasoi.example.test' }), { url: config.url, secret: 's', appBaseUrl: 'https://rasoi.example.test' })
+})
+
+test('extracts the rider phone, order number, and payment choice from YCloud buttons', () => {
+  assert.deepEqual(riderDeliveryAction({
+    data: { whatsappInboundMessage: { from: '+919999999999', type: 'interactive', interactive: { button_reply: { id: 'deliver_collected_RAS-123' } } } },
+  }), { recognized: true, order_number: 'RAS-123', rider_phone: '+919999999999', payment_status: 'collected' })
+  assert.deepEqual(riderDeliveryAction({
+    whatsappInboundMessage: { from: '+918888888888', type: 'interactive', interactive: { button_reply: { id: 'deliver_unpaid_RAS-124' } } },
+  }), { recognized: true, order_number: 'RAS-124', rider_phone: '+918888888888', payment_status: 'unpaid' })
+  assert.deepEqual(riderDeliveryAction({ whatsappInboundMessage: { from: '+919999999999', text: { body: 'Hi' } } }), { recognized: false })
 })
 
 test('sends the header secret and event id, and records success', async () => {
@@ -38,6 +48,54 @@ test('sends the header secret and event id, and records success', async () => {
   assert.deepEqual(JSON.parse(sent.body), row(1).payload)
   assert.deepEqual(admin.calls[1].args, { p_id: 'id-1', p_attempt: 1, p_ok: true, p_error_code: null })
   assert.equal(result.processed, 1)
+})
+
+test('routes rider completion buttons to the protected delivery endpoint instead of the AI workflow', async () => {
+  const admin = fakeAdmin([{
+    ...row(4),
+    payload: {
+      id: 'evt-4',
+      type: 'whatsapp.inbound_message.received',
+      whatsappInboundMessage: {
+        id: 'msg-4',
+        from: '+919999999999',
+        type: 'interactive',
+        interactive: { button_reply: { id: 'deliver_collected_RAS-204' } },
+      },
+    },
+  }])
+  const configWithApp = { ...config, appBaseUrl: 'https://rasoi.example.test' }
+  let sentUrl
+  let sent
+  const result = await drainYCloudInbox(admin, configWithApp, { fetchImpl: async (url, init) => {
+    sentUrl = url
+    sent = init
+    return new Response(null, { status: 200 })
+  } })
+  assert.equal(sentUrl, 'https://rasoi.example.test/api/webhooks/rider/deliver')
+  assert.equal(sent.headers['x-rasoi-whatsapp-secret'], config.secret)
+  assert.equal(sent.headers['x-rasoi-event-id'], 'evt-4')
+  assert.deepEqual(JSON.parse(sent.body), { order_number: 'RAS-204', rider_phone: '+919999999999', payment_status: 'collected' })
+  assert.equal(result.processed, 1)
+})
+
+test('does not send malformed rider buttons into the customer AI workflow', async () => {
+  const admin = fakeAdmin([{
+    ...row(5),
+    payload: {
+      id: 'evt-5',
+      type: 'whatsapp.inbound_message.received',
+      whatsappInboundMessage: { id: 'msg-5', type: 'interactive', interactive: { button_reply: { id: 'deliver_unpaid_RAS-205' } } },
+    },
+  }])
+  let requests = 0
+  const result = await drainYCloudInbox(admin, { ...config, appBaseUrl: 'https://rasoi.example.test' }, { fetchImpl: async () => {
+    requests += 1
+    return new Response(null, { status: 200 })
+  } })
+  assert.equal(requests, 0)
+  assert.equal(result.retryable, 1)
+  assert.equal(admin.calls.find((call) => call.fn === 'finish_ycloud_event').args.p_error_code, 'rider_action_incomplete_payload')
 })
 
 test('n8n down, auth rejected, and timeouts are recorded as retryable, not lost', async () => {

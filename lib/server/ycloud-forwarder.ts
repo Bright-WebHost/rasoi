@@ -1,7 +1,8 @@
-// Forwards accepted ycloud_event_inbox rows to the Rasoi n8n workflow.
-// Delivery is at-least-once: n8n must treat x-rasoi-event-id as its idempotency key.
+// Forwards accepted YCloud inbox rows to the Rasoi workflow. Rider completion buttons
+// bypass customer AI and go straight to the protected delivery status endpoint.
+// Delivery is at-least-once: consumers must treat x-rasoi-event-id as an idempotency key.
 
-export type ForwarderConfig = { url: string; secret: string }
+export type ForwarderConfig = { url: string; secret: string; appBaseUrl: string }
 
 type InboxRow = { id: string; provider_event_id: string; attempts: number; payload: unknown }
 type ForwarderAdminClient = {
@@ -17,7 +18,47 @@ export function forwarderConfig(env: Record<string, string | undefined> = proces
   const url = env.N8N_WHATSAPP_INBOUND_WEBHOOK_URL?.trim() || ''
   const secret = env.RASOI_WHATSAPP_INBOUND_SECRET?.trim() || ''
   if (!url.startsWith('https://') || !secret) return null
-  return { url, secret }
+  return { url, secret, appBaseUrl: env.NEXT_PUBLIC_SITE_URL?.trim() || '' }
+}
+
+type RiderDeliveryAction =
+  | { recognized: false }
+  | { recognized: true; error: string }
+  | { recognized: true; order_number: string; rider_phone: string; payment_status: 'collected' | 'unpaid' }
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+/** Identify rider completion buttons before an inbound event reaches the customer AI workflow. */
+export function riderDeliveryAction(payloadValue: unknown): RiderDeliveryAction {
+  const payload = asObject(payloadValue)
+  const data = asObject(payload.data)
+  const message = asObject(
+    payload.whatsappInboundMessage || payload.whatsappMessage || payload.message ||
+      data.whatsappInboundMessage || data.whatsappMessage || data.message,
+  )
+  const interactive = asObject(message.interactive)
+  const buttonReply = asObject(interactive.button_reply)
+  const listReply = asObject(interactive.list_reply)
+  const rawText = asObject(message.text).body
+  const rawContent = buttonReply.id || listReply.id || rawText || message.body
+  const content = typeof rawContent === 'string' ? rawContent.trim() : ''
+  const match = /^deliver_(collected|unpaid)_(.+)$/i.exec(content)
+  if (!match) return { recognized: false }
+
+  const sender = asObject(message.sender)
+  const rawPhone = message.from || sender.phone || data.from || payload.from
+  const riderPhone = typeof rawPhone === 'string' || typeof rawPhone === 'number' ? String(rawPhone).trim() : ''
+  const orderNumber = match[2].trim()
+  if (!orderNumber || !riderPhone) return { recognized: true, error: 'incomplete_payload' }
+
+  return {
+    recognized: true,
+    order_number: orderNumber,
+    rider_phone: riderPhone,
+    payment_status: match[1].toLowerCase() === 'unpaid' ? 'unpaid' : 'collected',
+  }
 }
 
 export async function drainYCloudInbox(
@@ -67,17 +108,42 @@ export async function drainYCloudInbox(
         const statusCode = stored.error && typeof stored.error === 'object' && 'code' in stored.error ? String(stored.error.code) : ''
         if (stored.error && statusCode !== '23505') errorCode = 'status_persist_failed'
       } else {
-        const res = await fetchImpl(config.url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-rasoi-whatsapp-secret': config.secret,
-            'x-rasoi-event-id': row.provider_event_id,
-          },
-          body: JSON.stringify(row.payload),
-          signal: AbortSignal.timeout(timeoutMs),
-        })
-        if (!res.ok) errorCode = `http_${res.status}`
+        const riderAction = riderDeliveryAction(payload)
+        let destination = config.url
+        let requestBody = row.payload
+
+        if (riderAction.recognized) {
+          if ('error' in riderAction) {
+            errorCode = `rider_action_${riderAction.error}`
+          } else {
+            try {
+              const appUrl = new URL(config.appBaseUrl)
+              if (appUrl.protocol !== 'https:') throw new Error('insecure_app_url')
+              destination = new URL('/api/webhooks/rider/deliver', appUrl).toString()
+              requestBody = {
+                order_number: riderAction.order_number,
+                rider_phone: riderAction.rider_phone,
+                payment_status: riderAction.payment_status,
+              }
+            } catch {
+              errorCode = 'rider_action_app_url_missing_or_insecure'
+            }
+          }
+        }
+
+        if (!errorCode) {
+          const res = await fetchImpl(destination, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-rasoi-whatsapp-secret': config.secret,
+              'x-rasoi-event-id': row.provider_event_id,
+            },
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(timeoutMs),
+          })
+          if (!res.ok) errorCode = `http_${res.status}`
+        }
       }
     } catch (e) {
       errorCode = e instanceof Error && e.name === 'TimeoutError' ? 'timeout' : 'network'

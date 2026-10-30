@@ -93,6 +93,12 @@ Delivery is enabled, but delivery fulfillment needs a rider and complete public 
 - Delivery operations still need at least one active rider and public restaurant address, phone, and city. AI tool calls are configured but still require a live end-to-end verification.
 - The Pabbas technical document describes its Stage A ordering demo and labels Meta WhatsApp integration and the AI conversational layer as future stages. Rasoi uses YCloud for its production WhatsApp path, so it is not a literal Meta implementation of that roadmap. The document does not define an admin-dashboard feature checklist.
 
+## Rider completion buttons (source update 2026-10-30)
+
+The inbox forwarder now recognizes `deliver_collected_<order>` and `deliver_unpaid_<order>` replies and posts them to Rasoi's protected rider-delivery endpoint. Those clicks skip the customer AI workflow, which prevents the rider from receiving its generic clarification reply and lets the dashboard order status become `delivered`. The forwarder uses `NEXT_PUBLIC_SITE_URL` for this internal app call. Source tests cover both payment choices, malformed buttons, and the normal inbound path. This change still needs deployment and a controlled rider click before live behavior is verified.
+
+Local checks on 2026-10-30: rider forwarder tests 9/9 and webhook tests 8/8 passed when run in-process; the opt-in database test was skipped. TypeScript and targeted ESLint passed. Whole-repo ESLint reports 207 errors and 99 warnings in existing files. `next build` could not download Geist fonts from Google Fonts in this network-restricted environment.
+
 Next production verification: enable YCloud message status events only after confirming the matching handler is deployed, inspect inbox-drain and n8n executions, then run the owner-authorized controlled takeaway order and confirm its customer reply and Status Notifier.
 
 Verification of the current local code: `npx tsc --noEmit`, targeted ESLint, and `npx next build` pass. `node --test test/*.mjs` passes 14 tests; the opt-in DB test is skipped unless `RUN_DB_TESTS=1` is set. The opt-in integration suite passed separately against the production database with self-cleaning test rows. Whole-repo lint still has pre-existing failures.

@@ -97,7 +97,7 @@ Delivery is enabled, but delivery fulfillment needs a rider and complete public 
 
 The inbox forwarder recognizes `deliver_collected_<order>` and `deliver_unpaid_<order>` replies and posts them to Rasoi's protected rider-delivery endpoint. Those clicks skip the customer AI workflow, which prevents the rider from receiving its generic clarification reply and lets the dashboard order status become `delivered`. The app URL is resolved from `NEXT_PUBLIC_SITE_URL` or Vercel's deployment settings, with the Rasoi production URL as a fallback. Source tests cover both payment choices, malformed buttons, and the normal inbound path.
 
-Production follow-up on 2026-10-30 found two real rider button events parsed correctly but retried with `rider_action_app_url_missing_or_insecure`; the matching order remained `out_for_delivery`. The new URL fallback addresses that recorded failure. Confirmation that the queued events retry successfully is pending deployment.
+Production follow-up on 2026-10-30 found two real rider button events parsed correctly but retried with `rider_action_app_url_missing_or_insecure`; the matching order remained `out_for_delivery`. Commit `524ac35` added URL resolution fallbacks and deployed successfully. Both queued button events then processed, and the order record is now `delivered` with `payment_status=collected`. The dashboard's order subscription refreshes when that row changes.
 
 Local checks on 2026-10-30: rider forwarder tests 10/10 and webhook tests 8/8 passed when run in-process; the opt-in database test was skipped. TypeScript and targeted ESLint passed. Whole-repo ESLint reports 207 errors and 99 warnings in existing files. `next build` could not download Geist fonts from Google Fonts in this network-restricted environment.
 

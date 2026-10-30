@@ -4,7 +4,6 @@ import { authorize } from "@/lib/auth/staff";
 import { INTERNAL_SECRET_HEADER, internalSecret } from "@/lib/server/internal-auth";
 
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function getYCloudTemplates() {
   await authorize("blast");
@@ -54,9 +53,22 @@ export async function uploadYCloudMedia(formData: FormData) {
     });
 
     if (!res.ok) {
-      const errTxt = await res.text();
-      console.error("YCloud Media Upload Error:", errTxt);
-      throw new Error(`Upload failed: ${res.status}`);
+      const errorBody = await res.json().catch(() => null);
+      const providerError = errorBody?.error;
+
+      if (providerError?.code === "WHATSAPP_PHONE_NUMBER_UNAVAILABLE") {
+        return {
+          success: false,
+          error: "The YCLOUD_PHONE_NUMBER configured in Vercel is not registered in YCloud. Set it to the exact registered WhatsApp sender number, including its country code, then redeploy.",
+        };
+      }
+
+      console.error("YCloud media upload failed:", {
+        status: res.status,
+        code: providerError?.code,
+        requestId: providerError?.requestId,
+      });
+      throw new Error(`YCloud media upload failed (${res.status})`);
     }
 
     const json = await res.json();
@@ -71,27 +83,6 @@ export async function sendBlast(filter: string, templateName: string, components
   await authorize("blast");
 
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { success: false, error: "Unauthorized" };
-    }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session || !session.access_token) {
-      return { success: false, error: "No access token" };
-    }
-
-    const adminClient = createAdminClient();
-    const { data: staffData } = await adminClient
-      .from("staff_members")
-      .select("name")
-      .eq("email", session.user.email)
-      .maybeSingle();
-
-    if (!staffData) {
-      return { success: false, error: "Not a staff member" };
-    }
-
     // Server-side validation
     const apiKey = process.env.YCLOUD_API_KEY;
     if (!apiKey) return { success: false, error: "YCLOUD_API_KEY not configured" };
@@ -115,16 +106,12 @@ export async function sendBlast(filter: string, templateName: string, components
       components,
       ycloud_api_key: apiKey,
       phones,
-      headers: {
-        authorization: `Bearer ${session.access_token}`
-      }
     };
 
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
         [INTERNAL_SECRET_HEADER]: internalSecret(),
       },
       body: JSON.stringify(payload),

@@ -13,9 +13,9 @@ export interface StaffUser {
 export const getStaffSession = cache(async (): Promise<StaffUser | null> => {
   try {
     const supabase = await createClient();
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (sessionError || !session?.user) {
+    if (userError || !user) {
       return null;
     }
 
@@ -29,7 +29,7 @@ export const getStaffSession = cache(async (): Promise<StaffUser | null> => {
     }
 
     return {
-      id: session.user.id,
+      id: user.id,
       email: data.email,
       role: data.role as StaffRole,
     };

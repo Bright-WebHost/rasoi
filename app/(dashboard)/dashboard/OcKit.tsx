@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchRiders } from "./(main)/riders/actions";
+import { useRiders } from "./oc-data";
 
 /** Oceana's slide-to-confirm bar. `onDone` returning false snaps it back. */
 export function Slide({ label, color, big, pulse, disabled, onDone }: {
@@ -55,13 +55,8 @@ export type Rider = { id: string; name: string; phone: string };
 export function RiderPicker({ orderNumber, onPick, onSkip }: {
   orderNumber: string; onPick: (r: Rider) => void; onSkip: () => void;
 }) {
-  const [riders, setRiders] = useState<Rider[] | null>(null);
-  useEffect(() => {
-    fetchRiders().then((res) => {
-      const list = (res.success ? res.riders || [] : []) as Array<{ id: string; name: string; whatsapp_number?: string; phone?: string; is_active?: boolean }>;
-      setRiders(list.filter((r) => r.is_active !== false).map((r) => ({ id: r.id, name: r.name, phone: r.whatsapp_number || r.phone || "" })));
-    });
-  }, []);
+  const { list } = useRiders();
+  const riders: Rider[] | null = list ? list.filter((r) => r.is_active !== false).map((r) => ({ id: r.id, name: r.name, phone: r.whatsapp_number || "" })) : null;
   return (
     <div className="modal">
       <div className="mcard">

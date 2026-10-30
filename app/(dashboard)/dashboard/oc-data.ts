@@ -115,3 +115,41 @@ export function useStockData(refreshOnMount = false) {
 }
 
 export const isMissingTable = missing;
+
+/* Tables and riders, read straight from Supabase (RLS: staff read) and cached
+   for the session — no server round trip when switching screens. */
+export type TableRow = { id: string; table_number: string };
+export type RiderRow = { id: string; name: string; whatsapp_number: string; is_active: boolean; cash_collected: number | null; created_at: string };
+
+function cachedList<T>(load: () => PromiseLike<{ data: unknown }>) {
+  let cache: T[] | null = null;
+  let pending: Promise<T[]> | null = null;
+  const subs = new Set<(v: T[]) => void>();
+  const fetchList = (force = false): Promise<T[]> => {
+    if (cache && !force) return Promise.resolve(cache);
+    if (!pending || force) {
+      pending = Promise.resolve(load()).then(({ data }) => {
+        cache = (data || []) as T[];
+        subs.forEach((s) => s(cache!));
+        return cache;
+      }).finally(() => { pending = null; });
+    }
+    return pending;
+  };
+  return function useList() {
+    const [list, setList] = useState<T[] | null>(cache);
+    useEffect(() => {
+      subs.add(setList);
+      void fetchList(Boolean(cache)); // show cache instantly, refresh quietly
+      return () => { subs.delete(setList); };
+    }, []);
+    const reload = useCallback(() => fetchList(true), []);
+    return { list, reload };
+  };
+}
+
+const naturalTable = (a: TableRow, b: TableRow) => a.table_number.localeCompare(b.table_number, undefined, { numeric: true });
+export const useTables = cachedList<TableRow>(() =>
+  db().from("restaurant_tables").select("id,table_number").then((r) => ({ data: ((r.data || []) as TableRow[]).sort(naturalTable) })));
+export const useRiders = cachedList<RiderRow>(() =>
+  db().from("riders").select("id,name,whatsapp_number,is_active,cash_collected,created_at").order("created_at", { ascending: false }));

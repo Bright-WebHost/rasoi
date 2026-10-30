@@ -41,6 +41,7 @@ type OcContext = {
   setRange: (r: RangeState) => void;
 };
 
+const SHELL_CACHE = "rasoi_shell";
 const Oc = createContext<OcContext | null>(null);
 
 export function useOc() {
@@ -59,6 +60,11 @@ export default function DashShell({ fontClass, children }: { fontClass: string; 
 
   useEffect(() => {
     let alive = true;
+    // Draw the frame straight away from the last verified session, then re-check it.
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(SHELL_CACHE) || "null") as { staff: StaffUser; settings: Record<string, string> } | null;
+      if (cached?.staff) { setSettings(cached.settings || {}); setStaff(cached.staff); }
+    } catch { /* ignore a corrupt cache */ }
     (async () => {
       const [{ data: userData }, staffRes, settingsRes] = await Promise.all([
         sb.current.auth.getUser(),
@@ -68,14 +74,17 @@ export default function DashShell({ fontClass, children }: { fontClass: string; 
       if (!alive) return;
       const check = staffRes.data as { staff?: boolean; email?: string; role?: StaffRole } | null;
       if (!userData.user || !check?.staff || !check.role) {
+        sessionStorage.removeItem(SHELL_CACHE);
         await sb.current.auth.signOut();
         router.replace("/dashboard/login?error=unauthorized");
         return;
       }
       const map: Record<string, string> = {};
       (settingsRes.data || []).forEach((r: { key: string; value: string | null }) => { map[r.key] = r.value ?? ""; });
+      const verified = { id: userData.user.id, email: check.email || userData.user.email || "", role: check.role };
+      sessionStorage.setItem(SHELL_CACHE, JSON.stringify({ staff: verified, settings: map }));
       setSettings(map);
-      setStaff({ id: userData.user.id, email: check.email || userData.user.email || "", role: check.role });
+      setStaff((cur) => (cur && cur.id === verified.id && cur.role === verified.role && cur.email === verified.email ? cur : verified));
     })();
     return () => { alive = false; };
   }, [router]);
@@ -170,6 +179,7 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
     toast("Refreshed");
   };
   const signOut = async () => {
+    sessionStorage.removeItem(SHELL_CACHE);
     await createClient().auth.signOut();
     router.replace("/dashboard/login");
   };

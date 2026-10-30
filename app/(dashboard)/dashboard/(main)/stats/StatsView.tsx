@@ -2,13 +2,13 @@
 
 /* Oceana Analytics: overview pills, order-type donut, top items, sales by day,
    hourly heatmap, cancelled orders, channels, riders and the shift-close report. */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { DashboardOrder } from "@/lib/orders/queries";
 import { useOrderManager } from "../../OrderManagerProvider";
 import { useOc } from "../../DashShell";
 import { channelOf, dayKeyIST, inRange, ist, rs, useIsMobile } from "../../oc-utils";
 import { RangeChips } from "../stock/StockView";
-import { fetchRiders } from "../riders/actions";
+import { useRiders } from "../../oc-data";
 
 type RiderRow = { id: string; name: string };
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -112,9 +112,8 @@ export default function StatsView() {
   const { orders } = useOrderManager();
   const { range, setRange, toast } = useOc();
   const mobile = useIsMobile();
-  const [riders, setRiders] = useState<RiderRow[]>([]);
+  const riders: RiderRow[] = useRiders().list || [];
   const [shiftOpen, setShiftOpen] = useState(false);
-  useEffect(() => { fetchRiders().then((r) => { if (r.success && r.riders) setRiders(r.riders as RiderRow[]); }); }, []);
 
   const rows = orders.filter((o) => inRange(o, range));
   const live = rows.filter((o) => o.status !== "cancelled");

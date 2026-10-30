@@ -2,14 +2,15 @@
 
 /* Oceana floor grid. Rasoi keeps one dine-in order per table with rounds in
    items_json, so a "tab" is that order and each round is a group of its lines. */
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DashboardOrder } from "@/lib/orders/queries";
 import { useOrderManager } from "../../OrderManagerProvider";
 import { useOc } from "../../DashShell";
 import { inRange, ist, lineItemsOf, rs } from "../../oc-utils";
 import { printOrderBill } from "@/lib/print/bill";
-import { addTable, clearTable, fetchTableHistory, fetchTables, mergeTables, moveTable, resendClosedTableBill } from "./actions";
+import { useTables } from "../../oc-data";
+import { addTable, clearTable, fetchTableHistory, mergeTables, moveTable, resendClosedTableBill } from "./actions";
 
 type Table = { id: string; table_number: string };
 type History = { id: string; order_number: string; total: number; status: string; created_at: string; whatsapp_bill_sent_at: string | null; whatsapp_bill_error: string | null };
@@ -24,7 +25,6 @@ export default function TablesView() {
   const router = useRouter();
   const { orders, refreshOrders } = useOrderManager();
   const { range, toast } = useOc();
-  const [tables, setTables] = useState<Table[]>([]);
   const [closeFor, setCloseFor] = useState<{ t: Table; o: DashboardOrder } | null>(null);
   const [moveFor, setMoveFor] = useState<{ t: Table; o: DashboardOrder } | null>(null);
   const [mergeFor, setMergeFor] = useState<{ t: Table; o: DashboardOrder } | null>(null);
@@ -32,11 +32,8 @@ export default function TablesView() {
   const [wantPrint, setWantPrint] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const loadTables = useCallback(async () => {
-    const r = await fetchTables();
-    if (r.success && r.tables) setTables((r.tables as Table[]).map((t) => ({ id: t.id, table_number: t.table_number })));
-  }, []);
-  useEffect(() => { void loadTables(); }, [loadTables]);
+  const { list, reload: loadTables } = useTables();
+  const tables: Table[] = list || [];
 
   const tabOf = (num: string) => orders.find((o) => String(o.table_number || "").trim() === String(num).trim() && OPEN.includes(o.status));
   const stateOf = (o?: DashboardOrder): State => (!o ? "free" : o.status === "ready_for_pickup" ? "ready" : "busy");

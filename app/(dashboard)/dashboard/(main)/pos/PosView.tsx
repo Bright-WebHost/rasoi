@@ -12,7 +12,7 @@ import { cleanNum, rs } from "../../oc-utils";
 import { printOrderBill } from "@/lib/print/bill";
 import { createClient } from "@/lib/supabase/client";
 import { createPosOrder, updatePosOrder } from "./actions";
-import { fetchTables } from "../tables/actions";
+import { useTables } from "../../oc-data";
 
 const PER_CAT = 8;
 type PType = "takeaway" | "delivery" | "dine-in";
@@ -35,7 +35,7 @@ export default function PosView() {
   const [variantFor, setVariantFor] = useState<MenuItem | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<{ edit?: string; append?: string; lockedTable?: string }>({});
-  const [tables, setTables] = useState<string[]>([]);
+  const tables = (useTables().list || []).map((t) => t.table_number);
 
   // Entry points: ?edit=<order id>, ?append=<order id>&table=<n>, ?table=<n>
   useEffect(() => {
@@ -43,7 +43,6 @@ export default function PosView() {
     const edit = p.get("edit") || undefined;
     const append = p.get("append") || undefined;
     const table = p.get("table") || undefined;
-    fetchTables().then((r) => { if (r.success && r.tables) setTables(r.tables.map((t: { table_number: string }) => t.table_number)); });
     if (!edit && !append && !table) return;
     setMode({ edit, append, lockedTable: table && !edit ? table : undefined });
     if (table && !edit) { setType("dine-in"); setForm((f) => ({ ...f, tbl: table })); }

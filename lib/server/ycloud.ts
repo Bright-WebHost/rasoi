@@ -58,3 +58,53 @@ export async function sendWhatsAppImage(phone: string, imageUrl: string, caption
     return { success: false, error: "WhatsApp bill image could not be sent." };
   }
 }
+
+/** Sends the approved utility template used for closed dine-in bills. */
+export async function sendWhatsAppBillTemplate(
+  phone: string,
+  imageUrl: string,
+  customerName: string,
+  orderNumber: string,
+  total: string,
+) {
+  try {
+    const apiKey = process.env.YCLOUD_API_KEY?.trim();
+    const from = process.env.YCLOUD_PHONE_NUMBER?.trim();
+    const digits = normalizeWhatsAppPhone(phone);
+
+    if (!apiKey || !from) return { success: false, error: "WhatsApp sending is not configured." };
+    if (!digits) return { success: false, error: "The customer's WhatsApp number is invalid." };
+
+    const response = await fetch("https://api.ycloud.com/v2/whatsapp/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+      body: JSON.stringify({
+        from,
+        to: `+${digits}`,
+        type: "template",
+        template: {
+          name: "order_bill_image",
+          language: { code: "en", policy: "deterministic" },
+          components: [
+            { type: "header", parameters: [{ type: "image", image: { link: imageUrl } }] },
+            {
+              type: "body",
+              parameters: [customerName, orderNumber, total].map((text) => ({ type: "text", text })),
+            },
+          ],
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const details = (await response.text()).slice(0, 500);
+      console.error("[sendWhatsAppBillTemplate] YCloud send failed:", response.status, details);
+      return { success: false, error: `WhatsApp provider rejected the bill template (${response.status}).` };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("[sendWhatsAppBillTemplate] Error:", error);
+    return { success: false, error: "WhatsApp bill template could not be sent." };
+  }
+}

@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendWhatsAppImage } from "@/lib/server/ycloud";
+import { sendWhatsAppBillTemplate } from "@/lib/server/ycloud";
 
 function receiptImageUrl(orderNumber: string) {
   const base = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://rasoi-pied.vercel.app").replace(/\/+$/, "");
@@ -12,7 +12,7 @@ export async function sendClosedTableBill(orderId: string) {
   const adminClient = createAdminClient();
   const { data: order, error } = await adminClient
     .from("orders")
-    .select("id, order_number, order_type, table_number, customer_phone, status, whatsapp_bill_sent_at")
+    .select("id, order_number, order_type, table_number, customer_name, customer_phone, total, status, whatsapp_bill_sent_at")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -30,7 +30,15 @@ export async function sendClosedTableBill(orderId: string) {
     return { success: false, sent: false, error: message };
   }
 
-  const result = await sendWhatsAppImage(phone, receiptImageUrl(order.order_number), "Thank you for dining with us! 🙏");
+  const customerName = String(order.customer_name || "there").trim() || "there";
+  const total = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(order.total) || 0);
+  const result = await sendWhatsAppBillTemplate(
+    phone,
+    receiptImageUrl(order.order_number),
+    customerName,
+    order.order_number,
+    total,
+  );
   if (!result.success) {
     await adminClient.from("orders").update({ whatsapp_bill_error: result.error }).eq("id", orderId);
     return { success: false, sent: false, error: result.error || "WhatsApp send failed." };

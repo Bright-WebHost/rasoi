@@ -3,6 +3,7 @@
 /* Oceana Orders board: Dine-in rail + Preparing / READY / DONE columns,
    declined & cancelled drawer, and a card list on phone widths. */
 import { useEffect, useState } from "react";
+import { Globe, MessageCircle, Store } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { DashboardOrder, OrderStatus } from "@/lib/orders/queries";
 import { useOrderManager } from "../../OrderManagerProvider";
@@ -24,6 +25,40 @@ const COLS: Col[] = [
   { key: "delivered", label: "DONE", cls: "delivered", slide: null, next: null, color: "#1F8A4C" },
 ];
 const DECLINE_REASONS = ["Item unavailable", "Kitchen full", "Outside delivery area", "Closing soon"];
+
+type SourceKey = "whatsapp" | "online" | "pos" | "other";
+const sourceKeyOf = (source: string | null | undefined): SourceKey | null => {
+  const value = String(source || "").trim().toLowerCase();
+  if (!value) return null;
+  if (value.includes("whatsapp") || value === "wa") return "whatsapp";
+  if (["pwa", "web", "website", "online", "guest"].includes(value)) return "online";
+  if (value === "pos" || value.includes("point of sale")) return "pos";
+  return "other";
+};
+const sourceClassOf = (source: string | null | undefined) => {
+  const key = sourceKeyOf(source);
+  return key ? `source-${key}` : "";
+};
+
+function SourceTag({ source }: { source: string | null | undefined }) {
+  const key = sourceKeyOf(source);
+  if (!key) return null;
+  const label = key === "whatsapp" ? "WhatsApp" : key === "online" ? "Online" : key === "pos" ? "POS" : source;
+  return (
+    <span className={`tag src src-${key}`}>
+      {key === "whatsapp" ? <MessageCircle aria-hidden="true" size={12} strokeWidth={2.5} /> : null}
+      {key === "online" ? <Globe aria-hidden="true" size={12} strokeWidth={2.5} /> : null}
+      {key === "pos" ? <Store aria-hidden="true" size={12} strokeWidth={2.5} /> : null}
+      {label}
+    </span>
+  );
+}
+
+function OrderTypeTag({ channel, tableNumber }: { channel: ReturnType<typeof channelOf>; tableNumber?: string | number | null }) {
+  const cls = channel === "delivery" ? "dl" : channel === "dine-in" ? "din" : "tk";
+  const label = channel === "dine-in" ? "Dine-in" : channel === "delivery" ? "Delivery" : "Takeaway";
+  return <span className={`tag ${cls}`}>{label}{tableNumber ? ` · T${tableNumber}` : ""}</span>;
+}
 
 const isDine = (o: DashboardOrder) => channelOf(o) === "dine-in";
 /** Rider tapped "Unpaid": delivered, but the customer still owes the shop. */
@@ -185,7 +220,7 @@ export default function OrdersView() {
     const ch = channelOf(o);
     const amended = Number(o.amendment_count) > 0;
     return (
-      <div key={o.id} className={`o ch-${ch}`}>
+      <div key={o.id} className={`o ch-${ch} ${sourceClassOf(o.source)}`}>
         <div className="orow">
           <div>
             <div className="onum">{o.order_number}</div>
@@ -198,7 +233,7 @@ export default function OrdersView() {
         {o.address ? <div className="addr">📍 {o.address}{o.landmark ? ", " + o.landmark : ""}{o.pincode ? " — " + o.pincode : ""}</div> : null}
         <div className="tags">
           <span className={`tag ${ch === "delivery" ? "dl" : ch === "dine-in" ? "din" : "tk"}`}>{ch}{o.table_number ? " · T" + o.table_number : ""}</span>
-          {o.source ? <span className="tag">{o.source}</span> : null}
+          <SourceTag source={o.source} />
           {amended ? <span className="tag am">Amended ×{o.amendment_count}</span> : null}
           {isUnpaid(o) ? <span className="tag unpaid">⚠ Unpaid {rs(o.total)}</span> : null}
           <AgeTag o={o} />
@@ -219,7 +254,7 @@ export default function OrdersView() {
   const dineCard = (o: DashboardOrder, done: boolean) => {
     const amended = Number(o.amendment_count) > 0;
     return (
-      <div key={o.id} className="o ch-dine-in">
+      <div key={o.id} className={`o ch-dine-in ${sourceClassOf(o.source)}`}>
         <div className="orow">
           <div>
             <div className="onum">{o.order_number}</div>
@@ -231,6 +266,7 @@ export default function OrdersView() {
         <div className="oitems"><Lines o={o} /></div>
         <div className="tags">
           <span className="tag din">Table {o.table_number || "?"}</span>
+          <SourceTag source={o.source} />
           {amended ? <span className="tag am">Amended ×{o.amendment_count}</span> : null}
           <AgeTag o={o} />
         </div>
@@ -330,10 +366,11 @@ export default function OrdersView() {
         </div>
         <div className="molist">
           {list.length ? list.map((o) => (
-            <div key={o.id} className="mocard">
+            <div key={o.id} className={`mocard ${sourceClassOf(o.source)}`}>
               <div className="morow"><b>{o.order_number}</b><span>{ist(o.created_at)} · {fmtMins(ageOf(o))}</span></div>
               <div className="mosub">{isDine(o) ? "Table " + (o.table_number || "?") : o.customer_name || "Guest"}{o.customer_phone ? " · " + o.customer_phone : ""}</div>
               {o.address ? <div className="mosub">📍 {o.address}{o.landmark ? ", " + o.landmark : ""}</div> : null}
+              <div className="motags"><OrderTypeTag channel={channelOf(o)} tableNumber={o.table_number} /><SourceTag source={o.source} /></div>
               <div className="moitems">{o.items}</div>
               {isUnpaid(o) ? <div className="money bad" style={{ marginBottom: 10 }}>⚠ Unpaid — customer didn&apos;t pay the rider</div> : null}
               <div className="moamt">{rs(o.total)}</div>

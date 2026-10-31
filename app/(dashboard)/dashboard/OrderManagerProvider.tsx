@@ -12,19 +12,23 @@ type WindowWithWebkitAudioContext = Window & { webkitAudioContext?: typeof Audio
 
 function playOrderChime(context: AudioContext) {
   const startAt = context.currentTime;
-  for (const note of [{ offset: 0, frequency: 880 }, { offset: 0.26, frequency: 660 }]) {
+  for (const note of [
+    { offset: 0, frequency: 880 },
+    { offset: 0.42, frequency: 1175 },
+    { offset: 0.84, frequency: 880 },
+  ]) {
     const at = startAt + note.offset;
     const oscillator = context.createOscillator();
     const volume = context.createGain();
-    oscillator.type = "sine";
+    oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(note.frequency, at);
     volume.gain.setValueAtTime(0.0001, at);
-    volume.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
-    volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+    volume.gain.exponentialRampToValueAtTime(0.48, at + 0.015);
+    volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.32);
     oscillator.connect(volume);
     volume.connect(context.destination);
     oscillator.start(at);
-    oscillator.stop(at + 0.22);
+    oscillator.stop(at + 0.34);
   }
 }
 

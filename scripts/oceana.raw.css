@@ -384,6 +384,15 @@ textarea.f2{resize:vertical;min-height:58px;font-family:inherit}
 .o.ch-delivery{border-left:4px solid #1A5FA8}
 .o.ch-takeaway{border-left:4px solid #E89B1C}
 .o.ch-dine-in{border-left:4px solid #5B3FBF}
+.tag.src{display:inline-flex;align-items:center;gap:4px}
+.tag.src-whatsapp{background:#DDF5E4;color:#176B35}
+.tag.src-online{background:#E8F2FF;color:#1A5FA8}
+.tag.src-pos{background:#FFF2DB;color:#946000}
+.tag.src-other{background:#F1F3F6;color:#56616D}
+.o.source-whatsapp,.mocard.source-whatsapp{background:#F3FFF6}
+.o.source-online,.mocard.source-online{background:#F6FAFF}
+.o.source-pos,.mocard.source-pos{background:#FFFBF1}
+.motags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .runclock{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:3px 8px;border-radius:7px;background:#EEF1F4;color:#4A5663}
 .runclock.warn{background:#FFF3E5;color:#9A6B00}
 .runclock.bad{background:#FDECEE;color:#C0392B}
@@ -498,6 +507,8 @@ textarea.f2{resize:vertical;min-height:58px;font-family:inherit}
 .cashbtn{background:#EAF8EF;border:1px solid #BEE5CC;color:#1F8A4C;font-weight:800}
 .cashdone{background:#F1F3F6;color:var(--muted);font-weight:700}
 @media(min-width:861px) and (max-width:1180px){
+  .board{grid-template-rows:auto}
+  .colbar>span:first-child{white-space:nowrap}
   .shell{grid-template-columns:186px 1fr}
   aside{padding:16px 10px}.brand{font-size:23px}.tile{width:48px;height:48px;font-size:27px}
   .stat b{font-size:33px}

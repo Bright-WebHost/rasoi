@@ -675,9 +675,9 @@ function ProductCard({ item, quantity, specialNote, onAdd, onChange, onNoteChang
             value={specialNote}
             onChange={(event) => onNoteChange(item.id, event.target.value)}
             maxLength={300}
-            rows={2}
+            rows={1}
             placeholder="Special note..."
-            className="w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-[11px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+            className="min-h-8 w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
           />
         </div>
       )}
@@ -765,10 +765,10 @@ function CartPanel({ cart, activeOrderItems, subtotal, deliveryFee, total, block
                   onChange={(event) => onNoteChange(line.item.id, event.target.value)}
                   onClick={(event) => event.stopPropagation()}
                   maxLength={300}
-                  rows={2}
+                  rows={1}
                   placeholder="Special note..."
                   aria-label={`Special instructions for ${line.item.name}`}
-                  className="mt-2 w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-[12px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                  className="mt-2 min-h-8 w-full resize-y rounded-lg border border-amber-200 bg-amber-50/70 px-2.5 py-1.5 text-[12px] font-medium leading-snug text-gray-800 outline-none placeholder:text-gray-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
                 />
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">

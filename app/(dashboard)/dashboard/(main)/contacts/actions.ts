@@ -5,6 +5,35 @@ import { authorize } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+export async function setContactEnabled(phone: string, enabled: boolean) {
+  await authorize("contacts");
+
+  const normalizedPhone = String(phone || "").replace(/\D/g, "");
+  if (normalizedPhone.length < 10 || normalizedPhone.length > 15 || typeof enabled !== "boolean") {
+    return { success: false, error: "Invalid contact update." };
+  }
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("customers")
+      .update({ opted_out: !enabled })
+      .eq("phone", normalizedPhone)
+      .select("phone")
+      .maybeSingle();
+
+    if (error) {
+      console.error("setContactEnabled error:", error.message);
+      return { success: false, error: "Could not update this contact." };
+    }
+    if (!data) return { success: false, error: "Contact not found." };
+
+    return { success: true };
+  } catch (error) {
+    console.error("setContactEnabled error:", error);
+    return { success: false, error: "Could not update this contact." };
+  }
+}
+
 export async function importContacts(text: string) {
   await authorize("contacts");
 

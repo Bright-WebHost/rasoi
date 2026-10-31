@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOc } from "../../DashShell";
 import { db } from "../../oc-data";
-import { importContacts } from "./actions";
+import { importContacts, setContactEnabled } from "./actions";
 
 type Customer = { phone: string; name: string | null; total_orders: number | null; last_order_date: string | null; opted_out: boolean | null };
 export const PICK_KEY = "rasoi_blast_selection";
@@ -29,6 +29,7 @@ export default function ContactsView() {
   const [paste, setPaste] = useState("");
   const [result, setResult] = useState<React.ReactNode>(null);
   const [drag, setDrag] = useState(false);
+  const [updatingPhone, setUpdatingPhone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const { data } = await db().from("customers").select("phone,name,total_orders,last_order_date,opted_out").order("last_order_date", { ascending: false, nullsFirst: false });
@@ -36,6 +37,29 @@ export default function ContactsView() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const update = (s: Set<string>) => { setPick(s); savePick(s); };
+  const toggleContact = async (customer: Customer) => {
+    const enabled = customer.opted_out !== false;
+    setUpdatingPhone(customer.phone);
+    try {
+      const response = await setContactEnabled(customer.phone, enabled);
+      if (!response.success) {
+        toast(response.error || "Could not update this contact");
+        return;
+      }
+
+      setCustomers((current) => current.map((c) => c.phone === customer.phone ? { ...c, opted_out: !enabled } : c));
+      if (!enabled) {
+        const next = new Set(pick);
+        next.delete(customer.phone);
+        update(next);
+      }
+      toast(enabled ? "Contact enabled for campaigns" : "Contact disabled for campaigns");
+    } catch {
+      toast("Could not update this contact");
+    } finally {
+      setUpdatingPhone(null);
+    }
+  };
 
   const doImport = async (text: string) => {
     const r = await importContacts(text);
@@ -52,13 +76,13 @@ export default function ContactsView() {
 
   const query = q.trim().toLowerCase();
   const rows = customers.filter((c) => !query || String(c.phone).includes(query) || String(c.name || "").toLowerCase().includes(query));
-  const eligible = rows.filter((c) => !c.opted_out);
+  const eligible = rows.filter((c) => c.opted_out === false);
   return (
     <div>
       <div className="stats">
         <div className="stat"><span>Saved Contacts</span><b>{customers.length}</b></div>
         <div className="stat r"><span>Selected</span><b>{pick.size}</b></div>
-        <div className="stat"><span>Opted Out</span><b>{customers.filter((c) => c.opted_out).length}</b></div>
+        <div className="stat"><span>Campaigns Off</span><b>{customers.filter((c) => c.opted_out !== false).length}</b></div>
       </div>
       <div className={`drop${drag ? " on" : ""}`}
         onDragEnter={(e) => { e.preventDefault(); setDrag(true); }} onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -81,16 +105,30 @@ export default function ContactsView() {
         {pick.size ? <span className="selinfo">{pick.size} selected</span> : null}
       </div>
       <table>
-        <thead><tr><th style={{ width: 38 }}></th><th>Number</th><th>Name</th><th>Orders</th><th>Last order</th></tr></thead>
+        <thead><tr><th style={{ width: 38 }}></th><th>Number</th><th>Name</th><th>Orders</th><th>Last order</th><th>Campaigns</th></tr></thead>
         <tbody>{rows.length ? rows.slice(0, 400).map((c) => (
           <tr key={c.phone}>
-            <td><input type="checkbox" className="cbox" checked={pick.has(c.phone)} disabled={Boolean(c.opted_out)} onChange={(e) => {
+            <td><input type="checkbox" className="cbox" checked={pick.has(c.phone)} disabled={c.opted_out !== false} onChange={(e) => {
               const n = new Set(pick); if (e.target.checked) n.add(c.phone); else n.delete(c.phone); update(n);
             }} /></td>
             <td>{c.phone}</td><td>{c.name || "—"}</td><td>{c.total_orders || 0}</td>
-            <td>{c.last_order_date || "—"}{c.opted_out ? <> · <b style={{ color: "var(--red)" }}>opted out</b></> : null}</td>
+            <td>{c.last_order_date || "—"}</td>
+            <td>
+              <button
+                className="sw"
+                type="button"
+                aria-label={`${c.opted_out === false ? "Disable" : "Enable"} campaigns for ${c.name || c.phone}`}
+                aria-pressed={c.opted_out === false}
+                title={c.opted_out === false ? "Disable this contact for campaigns" : "Enable this contact for campaigns"}
+                disabled={updatingPhone === c.phone}
+                onClick={() => void toggleContact(c)}
+              ><i /></button>
+              <span style={{ marginLeft: 8, color: c.opted_out !== false ? "var(--muted)" : "var(--c-done-t)" }}>
+                {updatingPhone === c.phone ? "Saving…" : c.opted_out === false ? "On" : "Off"}
+              </span>
+            </td>
           </tr>
-        )) : <tr><td colSpan={5} className="none">No contacts yet</td></tr>}</tbody>
+        )) : <tr><td colSpan={6} className="none">No contacts yet</td></tr>}</tbody>
       </table>
       {rows.length > 400 ? <div className="none" style={{ marginTop: 10 }}>Showing first 400 — search to narrow.</div> : null}
       {pick.size ? <button className="btn" style={{ marginTop: 16 }} onClick={() => router.push("/dashboard/blast")}>Blast to {pick.size} selected →</button> : null}

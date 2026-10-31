@@ -346,7 +346,9 @@ export default function Home() {
 
   if (screen === "welcome") return <Welcome store={store} setOrderType={(type) => { setOrderType(type); setScreen("menu"); }} />;
 
-  if (screen === "checkout") return <Checkout activeOrderItems={activeOrderItems} orderType={orderType} setOrderType={setOrderType} canDeliver={!store || store.orderTypes.delivery} canTakeaway={!store || store.orderTypes.takeaway} table={table} setTable={setTable} tables={tables} selectedTableId={selectedTableId} setSelectedTableId={setSelectedTableId} partySize={partySize} setPartySize={setPartySize} isAsap={isAsap} setIsAsap={setIsAsap} cart={cart} subtotal={subtotal} deliveryFee={deliveryFee} waivedDeliveryFee={waivedDeliveryFee} total={total} blockReason={checkoutBlock} deliveryNote={store?.deliveryNote || ""} details={details} setDetails={setDetails} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setScreen("menu")} onPlace={placeOrder} />;
+  if (screen === "checkout") return <>
+    <Checkout activeOrderItems={activeOrderItems} orderType={orderType} setOrderType={setOrderType} canDeliver={!store || store.orderTypes.delivery} canTakeaway={!store || store.orderTypes.takeaway} table={table} setTable={setTable} tables={tables} selectedTableId={selectedTableId} setSelectedTableId={setSelectedTableId} partySize={partySize} setPartySize={setPartySize} isAsap={isAsap} setIsAsap={setIsAsap} cart={cart} subtotal={subtotal} deliveryFee={deliveryFee} waivedDeliveryFee={waivedDeliveryFee} total={total} blockReason={checkoutBlock} deliveryNote={store?.deliveryNote || ""} details={details} setDetails={setDetails} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setScreen("menu")} onPlace={placeOrder} menuItems={menuItems} quantityFor={quantityFor} onAddDrink={addToCart} />
+  </>;
 
   if (screen === "table-order") return <TableOrderPage table={table} orderNumber={orderNumber} status={activeOrderStatus} items={activeOrderItems} total={activeOrderTotal} onAddMore={() => { setCart([]); if (activeOrderStatus === "closed") { setActiveOrderItems([]); setActiveOrderTotal(0); setOrderNumber(""); setIdempotencyKey(""); } setScreen("menu"); }} />;
 
@@ -955,7 +957,10 @@ function Checkout({
   isSubmitting,
   submitError,
   onBack,
-  onPlace
+  onPlace,
+  menuItems,
+  quantityFor,
+  onAddDrink
 }: {
   activeOrderItems?: any[];
   orderType: OrderType;
@@ -984,9 +989,13 @@ function Checkout({
   submitError: string;
   onBack: () => void;
   onPlace: () => void;
+  menuItems: MenuItem[];
+  quantityFor: (id: string) => number;
+  onAddDrink: (item: MenuItem) => void;
 }) { 
   const { user, signOut } = useAuth();
   const reduceMotion = useReducedMotion();
+  const drinkItems = menuItems.filter((item) => /drink|beverage|juice|soda|shake|coffee|tea/i.test(item.category));
 
   const [addresses, setAddresses] = useState<import("@/lib/supabase/types").CustomerAddressRow[]>([]);
   const [fetchingAddresses, setFetchingAddresses] = useState(false);
@@ -1281,6 +1290,25 @@ function Checkout({
         
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-[17px] font-bold mb-4 text-gray-800">Order Summary</h2>
+          {drinkItems.length ? (
+            <div className="mb-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
+              <h3 className="mb-1 text-[15px] font-extrabold text-gray-900">Add a drink</h3>
+              <p className="mb-3 text-[12px] font-medium text-gray-600">Pair your meal with a refreshing drink.</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {drinkItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-orange-100 bg-white p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-bold text-gray-800">{item.name}</p>
+                      <p className="text-[12px] font-semibold text-gray-500">{money(item.price)}</p>
+                    </div>
+                    <button type="button" onClick={() => onAddDrink(item)} className="shrink-0 rounded-lg bg-[#e23744] px-3 py-1.5 text-[12px] font-extrabold text-white">
+                      {quantityFor(item.id) ? `Add · ${quantityFor(item.id)}` : "Add"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex flex-col gap-3.5 mb-5">
             {activeOrderItems && activeOrderItems.length > 0 && (
               <div className="mb-2">

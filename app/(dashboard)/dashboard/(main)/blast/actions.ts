@@ -4,6 +4,7 @@ import { authorize } from "@/lib/auth/staff";
 import { INTERNAL_SECRET_HEADER, internalSecret } from "@/lib/server/internal-auth";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function getYCloudTemplates() {
   await authorize("blast");
@@ -99,13 +100,36 @@ export async function sendBlast(filter: string, templateName: string, components
     const webhookUrl = process.env.N8N_BLAST_WEBHOOK_URL?.trim();
     if (!webhookUrl) return { success: false, error: "N8N_BLAST_WEBHOOK_URL not configured" };
 
+    let eligiblePhones = phones;
+    let excludedContacts = 0;
+    if (phones.length) {
+      if (phones.length > 400) return { success: false, error: "Select no more than 400 contacts at a time." };
+      const selectedPhones = [...new Set(phones.map((phone) => String(phone).replace(/\D/g, "")).filter((phone) => phone.length >= 10 && phone.length <= 15))];
+      const supabase = createAdminClient();
+      const { data: eligibleCustomers, error: customerError } = await supabase
+        .from("customers")
+        .select("phone")
+        .eq("opted_out", false)
+        .in("phone", selectedPhones);
+      if (customerError) {
+        console.error("sendBlast recipient validation failed:", customerError.message);
+        return { success: false, error: "Could not verify campaign contacts. Please try again." };
+      }
+
+      eligiblePhones = (eligibleCustomers || []).map((customer: { phone: string }) => customer.phone);
+      excludedContacts = selectedPhones.length - eligiblePhones.length;
+      if (!eligiblePhones.length) {
+        return { success: false, error: "None of the selected contacts are enabled for campaigns." };
+      }
+    }
+
     const payload = {
       filter,
       template_name: templateName,
       language: template.language || "en",
       components,
       ycloud_api_key: apiKey,
-      phones,
+      phones: eligiblePhones,
     };
 
     const res = await fetch(webhookUrl, {
@@ -123,7 +147,7 @@ export async function sendBlast(filter: string, templateName: string, components
     }
 
     const data = await res.json();
-    return { success: true, data };
+    return { success: true, data: { ...data, excluded_contacts: excludedContacts } };
   } catch (err: any) {
     console.error("sendBlast error:", err);
     return { success: false, error: err.message || "Failed to send blast" };

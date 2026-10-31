@@ -26,6 +26,32 @@ type PosOrderPayload = {
   }>;
 };
 
+export async function searchPosCustomers(query: string) {
+  await authorize("pos");
+
+  const digits = String(query || "").replace(/\D/g, "");
+  if (digits.length < 3 || digits.length > 15) return { success: true as const, customers: [] };
+
+  try {
+    const { data, error } = await createAdminClient()
+      .from("customers")
+      .select("phone,name,total_orders")
+      .ilike("phone", `%${digits}%`)
+      .order("total_orders", { ascending: false, nullsFirst: false })
+      .limit(8);
+
+    if (error) {
+      console.error("[searchPosCustomers] Customer lookup failed:", error.message);
+      return { success: false as const, error: "Could not load customer matches." };
+    }
+
+    return { success: true as const, customers: data || [] };
+  } catch (error) {
+    console.error("[searchPosCustomers] Customer lookup failed:", error);
+    return { success: false as const, error: "Could not load customer matches." };
+  }
+}
+
 /** A dine-in order must name a table that exists, or it never shows up on the Tables page. */
 async function checkDineInTable(adminClient: ReturnType<typeof createAdminClient>, payload: PosOrderPayload) {
   if (payload.order_type !== "dine-in") return null;

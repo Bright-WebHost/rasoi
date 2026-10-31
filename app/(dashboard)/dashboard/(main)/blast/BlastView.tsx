@@ -81,11 +81,12 @@ export default function BlastView() {
       }
       const r = await sendBlast(pick.length ? "all" : filter, tpl, components, pick);
       if (!r.success || !r.data) throw new Error(r.error || "Blast did not complete. Check the workflow is active in n8n.");
-      const d = r.data as { sent?: number; attempted?: number; error?: string; monthly_cap?: boolean };
+      const d = r.data as { sent?: number; attempted?: number; error?: string; monthly_cap?: boolean; excluded_contacts?: number };
       const sentCount = Number(d.sent || 0);
-      const attemptedCount = Number(d.attempted ?? (pick.length || eligible));
+      const attemptedCount = Number(d.attempted ?? (pick.length ? pick.length - (d.excluded_contacts || 0) : eligible));
       setRes(<>
         <div className={`stat ${sentCount ? "" : "r"}`}><span>Sent of {attemptedCount}</span><b>{sentCount}</b></div>
+        {d.excluded_contacts ? <div className="err" style={{ marginTop: 10 }}>{d.excluded_contacts} disabled contact{d.excluded_contacts === 1 ? " was" : "s were"} excluded from this campaign.</div> : null}
         {d.error ? <div className="err" style={{ marginTop: 10 }}><b>{d.monthly_cap ? "Cap reached:" : "Meta says:"}</b> {d.error}</div> : null}
       </>);
       setSent((s) => s + sentCount);

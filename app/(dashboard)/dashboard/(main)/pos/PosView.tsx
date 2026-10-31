@@ -11,13 +11,14 @@ import { FALLBACK_IMG, useMenu, type MenuItem } from "../../oc-data";
 import { cleanNum, rs } from "../../oc-utils";
 import { printOrderBill } from "@/lib/print/bill";
 import { createClient } from "@/lib/supabase/client";
-import { createPosOrder, updatePosOrder } from "./actions";
+import { createPosOrder, searchPosCustomers, updatePosOrder } from "./actions";
 import { useTables } from "../../oc-data";
 
 const PER_CAT = 8;
 type PType = "takeaway" | "delivery" | "dine-in";
 type Line = { key: string; item: MenuItem; name: string; variant: string | null; price: number; qty: number };
 type Form = { ph: string; nm: string; adr: string; pin: string; tbl: string };
+type PosCustomer = { phone: string; name: string | null; total_orders: number | null };
 
 export default function PosView() {
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function PosView() {
   const [type, setType] = useState<PType>("takeaway");
   const [cart, setCart] = useState<Line[]>([]);
   const [form, setForm] = useState<Form>({ ph: "", nm: "", adr: "", pin: "", tbl: "" });
+  const [phoneSuggestions, setPhoneSuggestions] = useState<{ query: string; customers: PosCustomer[] }>({ query: "", customers: [] });
+  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
   const [err, setErr] = useState<keyof Form | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -36,6 +39,33 @@ export default function PosView() {
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<{ edit?: string; append?: string; lockedTable?: string }>({});
   const tables = useTables().list || [];
+
+  useEffect(() => {
+    const digits = form.ph.replace(/\D/g, "");
+    if (!showPhoneSuggestions || mode.append || digits.length < 3) return;
+
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void searchPosCustomers(digits).then((response) => {
+        if (!active) return;
+        if (response.success) setPhoneSuggestions({ query: digits, customers: response.customers });
+        else {
+          setPhoneSuggestions({ query: digits, customers: [] });
+          toast(response.error);
+        }
+      }).catch(() => {
+        if (active) {
+          setPhoneSuggestions({ query: digits, customers: [] });
+          toast("Could not load customer matches");
+        }
+      });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.ph, mode.append, showPhoneSuggestions, toast]);
 
   // Entry points: ?edit=<order id>, ?append=<order id>&table=<n>, ?table=<n>
   useEffect(() => {
@@ -264,7 +294,39 @@ export default function PosView() {
         <div className="cfoot">
           {!mode.append ? (
             <>
-              <input className={`f2${err === "ph" ? " ferr" : ""}`} placeholder="WhatsApp number *" inputMode="numeric" value={form.ph} onChange={set("ph")} />
+              <div className="pos-phone-field">
+                <input
+                  className={`f2${err === "ph" ? " ferr" : ""}`}
+                  placeholder="WhatsApp number *"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={form.ph}
+                  onFocus={() => setShowPhoneSuggestions(true)}
+                  onBlur={() => setShowPhoneSuggestions(false)}
+                  onChange={(e) => { setForm((current) => ({ ...current, ph: e.target.value })); setShowPhoneSuggestions(true); if (err === "ph") setErr(null); }}
+                />
+                {showPhoneSuggestions && phoneSuggestions.query === form.ph.replace(/\D/g, "") && phoneSuggestions.customers.length ? (
+                  <div className="pos-phone-suggestions" role="listbox" aria-label="Matching customers">
+                    {phoneSuggestions.customers.map((customer) => (
+                      <button
+                        key={customer.phone}
+                        type="button"
+                        role="option"
+                        aria-selected={false}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setForm((current) => ({ ...current, ph: customer.phone, nm: customer.name || current.nm }));
+                          setPhoneSuggestions({ query: "", customers: [] });
+                          setShowPhoneSuggestions(false);
+                        }}
+                      >
+                        <span><b>{customer.name || "Customer"}</b><small>{customer.phone}</small></span>
+                        <strong>{customer.total_orders || 0} orders</strong>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <input className="f2" placeholder="Customer name" value={form.nm} onChange={set("nm")} />
             </>
           ) : null}

@@ -8,6 +8,26 @@ import { normalizeDashboardOrderType } from "@/lib/orders/type-utils";
 import { useStaff } from "@/components/providers/StaffProvider";
 import { isAuthError, redirectIfSessionExpired } from "@/lib/auth/session-expired";
 
+type WindowWithWebkitAudioContext = Window & { webkitAudioContext?: typeof AudioContext };
+
+function playOrderChime(context: AudioContext) {
+  const startAt = context.currentTime;
+  for (const note of [{ offset: 0, frequency: 880 }, { offset: 0.26, frequency: 660 }]) {
+    const at = startAt + note.offset;
+    const oscillator = context.createOscillator();
+    const volume = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(note.frequency, at);
+    volume.gain.setValueAtTime(0.0001, at);
+    volume.gain.exponentialRampToValueAtTime(0.14, at + 0.02);
+    volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
+    oscillator.connect(volume);
+    volume.connect(context.destination);
+    oscillator.start(at);
+    oscillator.stop(at + 0.22);
+  }
+}
+
 interface OrderManagerContextType {
   orders: DashboardOrder[];
   queuedNewOrders: DashboardOrder[];
@@ -20,6 +40,7 @@ interface OrderManagerContextType {
   isRealtimeConnected: boolean;
   refreshOrders: () => Promise<void>;
   toggleSound: () => void;
+  enableSound: () => void;
   soundEnabled: boolean;
 }
 
@@ -52,83 +73,83 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
 
   const supabase = useRef(createClient());
   const acknowledgedIds = useRef<Set<string>>(new Set());
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const soundLoopRef = useRef<number | null>(null);
   const pendingUpdates = useRef<Set<string>>(new Set());
   const ordersRef = useRef<DashboardOrder[]>(initialOrders);
 
-  useEffect(() => {
-    const unlock = () => {
-      if (audioRef.current) {
-        audioRef.current.play().then(() => {
-          audioRef.current?.pause();
-          document.removeEventListener('click', unlock);
-          document.removeEventListener('keydown', unlock);
-        }).catch(() => { });
-      }
-    };
-    document.addEventListener('click', unlock);
-    document.addEventListener('keydown', unlock);
-    return () => {
-      document.removeEventListener('click', unlock);
-      document.removeEventListener('keydown', unlock);
-    };
-  }, []);
-
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && !audioRef.current) {
-
+  const getAudioContext = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    if (audioContextRef.current) return audioContextRef.current;
+    const AudioContextConstructor = window.AudioContext || (window as WindowWithWebkitAudioContext).webkitAudioContext;
+    if (!AudioContextConstructor) return null;
+    try {
+      audioContextRef.current = new AudioContextConstructor();
+      return audioContextRef.current;
+    } catch {
+      return null;
     }
   }, []);
+
+  const playChime = useCallback(() => {
+    const context = getAudioContext();
+    if (!context) return;
+    const play = () => { if (context.state === "running") playOrderChime(context); };
+    if (context.state === "running") play();
+    else void context.resume().then(play).catch((err) => console.warn("Order sound could not resume", err));
+  }, [getAudioContext]);
 
   const stopSound = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    if (soundLoopRef.current !== null) {
+      window.clearInterval(soundLoopRef.current);
+      soundLoopRef.current = null;
     }
   }, []);
 
-  const startSound = useCallback(() => {
-    if (!soundEnabled || !audioRef.current) return;
-    try {
-      audioRef.current.play().catch(e => console.warn("Audio play blocked", e));
-    } catch (err) {
-      console.warn("Sound play failed", err);
-    }
-  }, [soundEnabled]);
+  const enableSound = useCallback(() => {
+    setSoundEnabled(true);
+    localStorage.setItem("rasoi_sound_enabled", "true");
+    const context = getAudioContext();
+    if (!context) return;
+    const preview = () => { if (queuedNewOrders.length === 0) playOrderChime(context); };
+    if (context.state === "running") preview();
+    else void context.resume().then(preview).catch((err) => console.warn("Order sound could not unlock", err));
+  }, [getAudioContext, queuedNewOrders.length]);
 
   const toggleSound = useCallback(() => {
-    setSoundEnabled(prev => {
-      const next = !prev;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("rasoi_sound_enabled", String(next));
-      }
-      if (!next) {
-        stopSound();
-      } else {
-        // Unlock audio on user interaction
-        if (audioRef.current) {
-          audioRef.current.play().then(() => {
-            audioRef.current?.pause();
-            audioRef.current!.currentTime = 0;
-            // If there's already queued orders, play it for real
-            if (queuedNewOrders.length > 0) {
-              audioRef.current?.play().catch(() => { });
-            }
-          }).catch(e => console.warn("Audio unlock failed", e));
-        }
-      }
-      return next;
-    });
-  }, [stopSound, queuedNewOrders.length]);
+    if (soundEnabled) {
+      setSoundEnabled(false);
+      localStorage.setItem("rasoi_sound_enabled", "false");
+      stopSound();
+      return;
+    }
+    enableSound();
+  }, [enableSound, soundEnabled, stopSound]);
 
   useEffect(() => {
-    if (queuedNewOrders.length > 0 && soundEnabled) {
-      startSound();
-    } else {
-      stopSound();
-    }
-  }, [queuedNewOrders.length, soundEnabled, startSound, stopSound]);
+    const unlock = () => {
+      const context = getAudioContext();
+      if (!context) return;
+      void context.resume().then(() => {
+        document.removeEventListener("pointerdown", unlock);
+        document.removeEventListener("keydown", unlock);
+      }).catch(() => { /* a later user gesture can unlock audio */ });
+    };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, [getAudioContext]);
+
+  useEffect(() => {
+    stopSound();
+    if (!soundEnabled || queuedNewOrders.length === 0) return;
+    playChime();
+    soundLoopRef.current = window.setInterval(playChime, 3000);
+    return stopSound;
+  }, [playChime, queuedNewOrders.length, soundEnabled, stopSound]);
 
   // Initial Sync & Polling
   const refreshOrders = useCallback(async () => {
@@ -445,9 +466,9 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       isRealtimeConnected,
       refreshOrders,
       toggleSound,
+      enableSound,
       soundEnabled
     }}>
-      <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" loop preload="auto" style={{ display: 'none' }} />
       {children}
     </OrderManagerContext.Provider>
   );

@@ -137,7 +137,7 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
   const pathname = usePathname();
   const router = useRouter();
   const { staff, toast } = useOc();
-  const { refreshOrders, lastUpdated, toggleSound, soundEnabled } = useOrderManager();
+  const { refreshOrders, lastUpdated, toggleSound, enableSound, soundEnabled } = useOrderManager();
   const [navOpen, setNavOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // Phone/tablet: one deliberate tap per device arms sound + keeps the screen awake (Oceana's shift gate).
@@ -153,7 +153,7 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
   }, [keepAwake]);
   const startShift = () => {
     localStorage.setItem("rasoi_shift_ok", "1");
-    if (!soundEnabled) toggleSound();
+    enableSound();
     try { if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission(); } catch { /* unsupported */ }
     void keepAwake();
     setGate(false);

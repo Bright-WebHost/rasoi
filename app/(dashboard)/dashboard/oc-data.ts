@@ -118,7 +118,7 @@ export const isMissingTable = missing;
 
 /* Tables and riders, read straight from Supabase (RLS: staff read) and cached
    for the session — no server round trip when switching screens. */
-export type TableRow = { id: string; table_number: string };
+export type TableRow = { id: string; table_number: string; capacity: number };
 export type RiderRow = { id: string; name: string; whatsapp_number: string; is_active: boolean; cash_collected: number | null; created_at: string };
 
 function cachedList<T>(load: () => PromiseLike<{ data: unknown }>) {
@@ -150,6 +150,6 @@ function cachedList<T>(load: () => PromiseLike<{ data: unknown }>) {
 
 const naturalTable = (a: TableRow, b: TableRow) => a.table_number.localeCompare(b.table_number, undefined, { numeric: true });
 export const useTables = cachedList<TableRow>(() =>
-  db().from("restaurant_tables").select("id,table_number").then((r) => ({ data: ((r.data || []) as TableRow[]).sort(naturalTable) })));
+  db().from("restaurant_tables").select("id,table_number,capacity").then((r) => ({ data: ((r.data || []) as TableRow[]).sort(naturalTable) })));
 export const useRiders = cachedList<RiderRow>(() =>
   db().from("riders").select("id,name,whatsapp_number,is_active,cash_collected,created_at").order("created_at", { ascending: false }));

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type RestaurantTable = {
   id: string;
   table_number: string;
+  capacity: number;
   qr_code_url: string | null;
   is_active: boolean;
   current_order_id: string | null;
@@ -114,12 +115,16 @@ export async function fetchTables() {
   }
 }
 
-export async function addTable(tableNumber: string) {
+export async function addTable(tableNumber: string, capacity: number) {
   await authorize("tables");
 
   try {
     const adminClient = createAdminClient();
     const cleanNumber = tableNumber.trim();
+    if (!cleanNumber) return { success: false, error: "Enter a table number." };
+    if (!Number.isSafeInteger(capacity) || capacity < 1) {
+      return { success: false, error: "Seating capacity must be a whole number greater than zero." };
+    }
 
     // Check if table already exists
     const { data: existing } = await adminClient
@@ -136,6 +141,7 @@ export async function addTable(tableNumber: string) {
       .from("restaurant_tables")
       .insert([{ 
         table_number: cleanNumber,
+        capacity,
         is_active: false
       }])
       .select()

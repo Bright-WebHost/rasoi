@@ -35,7 +35,7 @@ export default function PosView() {
   const [variantFor, setVariantFor] = useState<MenuItem | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<{ edit?: string; append?: string; lockedTable?: string }>({});
-  const tables = (useTables().list || []).map((t) => t.table_number);
+  const tables = useTables().list || [];
 
   // Entry points: ?edit=<order id>, ?append=<order id>&table=<n>, ?table=<n>
   useEffect(() => {
@@ -277,7 +277,7 @@ export default function PosView() {
           {type === "dine-in" && !mode.lockedTable ? (
             <>
               <input className={`f2${err === "tbl" ? " ferr" : ""}`} placeholder="Table number *" list="pos-tables" value={form.tbl} onChange={set("tbl")} />
-              <datalist id="pos-tables">{tables.map((t) => <option key={t} value={t} />)}</datalist>
+              <datalist id="pos-tables">{tables.map((t) => <option key={t.id} value={t.table_number} label={`${t.capacity} seats`} />)}</datalist>
             </>
           ) : null}
           <div className="ctot"><span>Total</span><span>{rs(total)}</span></div>

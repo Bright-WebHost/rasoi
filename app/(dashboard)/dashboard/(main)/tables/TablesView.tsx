@@ -12,7 +12,7 @@ import { printOrderBill } from "@/lib/print/bill";
 import { useTables } from "../../oc-data";
 import { addTable, clearTable, fetchTableHistory, mergeTables, moveTable, resendClosedTableBill } from "./actions";
 
-type Table = { id: string; table_number: string };
+type Table = { id: string; table_number: string; capacity: number };
 type History = { id: string; order_number: string; total: number; status: string; created_at: string; whatsapp_bill_sent_at: string | null; whatsapp_bill_error: string | null };
 type State = "free" | "busy" | "ready";
 const OPEN = ["new", "preparing", "ready_for_pickup"];
@@ -45,10 +45,18 @@ export default function TablesView() {
 
   const newTable = async () => {
     const n = prompt("New table number");
-    if (!n) return;
-    const r = await addTable(String(n));
+    if (!n?.trim()) return;
+    const cleanNumber = n.trim();
+    const seating = prompt(`Seating capacity for table ${cleanNumber}`, "4");
+    if (seating === null) return;
+    const capacity = Number(seating.trim());
+    if (!Number.isSafeInteger(capacity) || capacity < 1) {
+      toast("Seating capacity must be a whole number greater than zero");
+      return;
+    }
+    const r = await addTable(cleanNumber, capacity);
     if (!r.success) { toast(r.error || "Could not add"); return; }
-    toast("Table " + n + " added");
+    toast(`Table ${cleanNumber} added · ${capacity} seat${capacity === 1 ? "" : "s"}`);
     void loadTables();
   };
   const close = async () => {
@@ -146,7 +154,9 @@ export default function TablesView() {
               <div className="th">
                 <div className="tn">{t.table_number}</div>
                 <div><div style={{ fontWeight: 800, fontSize: 14 }}>Table {t.table_number}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700 }}>{o ? o.order_number : "Ready for guests"}</div></div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700 }}>
+                    {t.capacity} seat{t.capacity === 1 ? "" : "s"} · {o ? o.order_number : "Ready for guests"}
+                  </div></div>
                 <span className="tstate">{STATE_LABEL[st]}</span>
               </div>
               <div className="tb">
@@ -214,7 +224,7 @@ export default function TablesView() {
             <h3>Move table {moveFor.t.table_number} to</h3>
             <div className="rlist">
               {tables.filter((t) => !tabOf(t.table_number)).length
-                ? tables.filter((t) => !tabOf(t.table_number)).map((t) => <button key={t.id} onClick={() => void move(t.table_number)}>Table {t.table_number}</button>)
+                ? tables.filter((t) => !tabOf(t.table_number)).map((t) => <button key={t.id} onClick={() => void move(t.table_number)}>Table {t.table_number} · {t.capacity} seat{t.capacity === 1 ? "" : "s"}</button>)
                 : <div className="none">No free table to move to</div>}
             </div>
             <button className="btn ghost" onClick={() => setMoveFor(null)}>Cancel</button>

@@ -59,7 +59,7 @@ export async function sendWhatsAppImage(phone: string, imageUrl: string, caption
   }
 }
 
-/** Sends the approved utility template used for closed dine-in bills. */
+/** Sends the approved utility template used for POS and closed-table bills. */
 export async function sendWhatsAppBillTemplate(
   phone: string,
   imageUrl: string,

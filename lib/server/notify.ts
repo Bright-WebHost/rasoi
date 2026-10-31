@@ -40,7 +40,7 @@ export async function notifyStatusWebhook(order_number: string, status: string, 
 }
 export async function notifyOrderCreatedWebhook(payload: any) {
   try {
-    // Dine-in customers receive their itemized bill only after staff closes the table.
+    // QR dine-in customers receive their final bill only after staff closes the table.
     if (payload?.order_type === "dine-in" || String(payload?.table_number || "").trim()) {
       return { success: true, skipped: true };
     }

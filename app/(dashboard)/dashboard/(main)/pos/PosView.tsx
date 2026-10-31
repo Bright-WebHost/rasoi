@@ -124,7 +124,10 @@ export default function PosView() {
         });
         const j = await res.json();
         if (!j.success) throw new Error(j.error || "failed");
-        toast("Round added to table " + form.tbl.trim());
+        const billNotice = typeof j.billSent === "boolean"
+          ? j.billSent ? " · WhatsApp bill sent" : ` · WhatsApp bill not sent${j.billError ? `: ${j.billError}` : ""}`
+          : "";
+        toast("Round added to table " + form.tbl.trim() + billNotice);
         void refreshOrders();
         router.push("/dashboard/tables");
         return;
@@ -144,11 +147,17 @@ export default function PosView() {
       if (mode.edit) {
         const r = await updatePosOrder(mode.edit, payload);
         if (!r.success) throw new Error(r.error || "failed");
-        toast("Order updated · " + rs(total));
+        const billNotice = typeof r.billSent === "boolean"
+          ? r.billSent ? " · WhatsApp bill sent" : ` · WhatsApp bill not sent${r.billError ? `: ${r.billError}` : ""}`
+          : "";
+        toast("Order updated · " + rs(total) + billNotice);
       } else {
         const r = await createPosOrder(payload);
         if (!r.success) throw new Error(r.error || "failed");
-        toast((r.order?.order_number || "Order") + " sent to the kitchen");
+        const billNotice = r.billSent
+          ? " · WhatsApp bill sent"
+          : ` · WhatsApp bill not sent${r.billError ? `: ${r.billError}` : ""}`;
+        toast((r.order?.order_number || "Order") + " sent to the kitchen" + billNotice);
         if (autoPrint && r.order?.id) printOrderBill(r.order.id, { auto: true }).catch(() => {});
       }
       setCart([]); setForm({ ph: "", nm: "", adr: "", pin: "", tbl: "" }); setQ(""); setCat("All");

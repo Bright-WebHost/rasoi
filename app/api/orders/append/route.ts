@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { notifyStatusWebhook } from "@/lib/server/notify";
+import { sendPosOrderBill } from '@/lib/orders/table-bill';
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     // 1. Fetch existing order
     const { data: order, error: orderError } = await adminClient
       .from('orders')
-      .select('id, items_json, total, status, order_number, order_type, table_number')
+      .select('id, items_json, total, status, order_number, order_type, table_number, source')
       .eq('id', order_id)
       .single();
 
@@ -111,15 +112,21 @@ export async function POST(request: Request) {
     }
 
     // 4. Update the order
+    const updatePayload: any = {
+      items_json: mergedItems,
+      items: itemsSummary,
+      total: updatedTotal,
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    };
+    if (order.source === 'pos') {
+      updatePayload.whatsapp_bill_sent_at = null;
+      updatePayload.whatsapp_bill_error = null;
+    }
+
     const { data: updatedOrder, error: updateError } = await adminClient
       .from('orders')
-      .update({
-        items_json: mergedItems,
-        items: itemsSummary,
-        total: updatedTotal,
-        status: newStatus,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', order_id)
       .eq('table_number', table_number)
       .in('status', openStatuses)
@@ -160,6 +167,22 @@ export async function POST(request: Request) {
     // Trigger webhook if we went back to preparing
     if (newStatus === 'preparing' && order.status !== 'preparing' && !isDineInOrder) {
       await notifyStatusWebhook(order.order_number, "preparing", undefined, { is_update: true });
+    }
+
+    if (order.source === 'pos') {
+      const billResult = await sendPosOrderBill(order.id);
+      if (!billResult.sent) {
+        console.error('[append-order] POS table round was added but its bill was not sent:', billResult.error);
+      }
+      return NextResponse.json({
+        success: true,
+        order_number: order.order_number,
+        status: newStatus,
+        new_total: updatedTotal,
+        merged_items: mergedItems,
+        billSent: billResult.sent,
+        billError: billResult.sent ? null : billResult.error || 'WhatsApp bill could not be sent.',
+      });
     }
 
     return NextResponse.json({ success: true, order_number: order.order_number, status: newStatus, new_total: updatedTotal, merged_items: mergedItems });

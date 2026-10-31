@@ -5,6 +5,7 @@ import { authorize } from "@/lib/auth/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyOrderCreatedWebhook } from "@/lib/server/notify";
 import { normalizeWhatsAppPhone } from "@/lib/phone/whatsapp";
+import { sendPosOrderBill } from "@/lib/orders/table-bill";
 
 type PosOrderPayload = {
   customer_name: string;
@@ -38,8 +39,8 @@ export async function createPosOrder(payload: PosOrderPayload) {
   await authorize("pos");
 
   try {
-    if (payload.order_type === "dine-in" && !normalizeWhatsAppPhone(payload.customer_phone)) {
-      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the final table bill." };
+    if (!normalizeWhatsAppPhone(payload.customer_phone)) {
+      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the order bill." };
     }
 
     const adminClient = createAdminClient();
@@ -78,7 +79,13 @@ export async function createPosOrder(payload: PosOrderPayload) {
     // and go straight to 'preparing' (kitchen)
     await adminClient.from("orders").update({ status: "preparing" }).eq("id", data.id);
 
-    // Counter delivery/takeaway orders get an invoice at creation. Dine-in gets its final bill when staff closes the table.
+    // Every POS order gets the approved bill template immediately, including dine-in.
+    const billResult = await sendPosOrderBill(data.id);
+    if (!billResult.sent) {
+      console.error("[createPosOrder] POS order was created but its bill was not sent:", billResult.error);
+    }
+
+    // Keep the existing delivery/takeaway order confirmation.
     if (payload.order_type !== "dine-in" && payload.customer_phone && payload.customer_phone.replace(/\D/g, "").length >= 10) {
       await notifyOrderCreatedWebhook({
         order_number: data.order_number,
@@ -93,6 +100,8 @@ export async function createPosOrder(payload: PosOrderPayload) {
 
     return {
       success: true,
+      billSent: billResult.sent,
+      billError: billResult.sent ? null : billResult.error || "WhatsApp bill could not be sent.",
       order: {
         id: data.id,
         order_number: data.order_number,
@@ -112,7 +121,7 @@ export async function updatePosOrder(orderId: string, payload: PosOrderPayload) 
     // Preserve the original dine-in classification and table when staff edit it in POS.
     const { data: oldOrder, error: oldOrderError } = await adminClient
       .from("orders")
-      .select("total, items_json, status, order_type, table_number")
+      .select("total, items_json, status, order_type, table_number, source")
       .eq("id", orderId)
       .single();
     if (oldOrderError || !oldOrder) return { success: false, error: "Order not found." };
@@ -129,8 +138,8 @@ export async function updatePosOrder(orderId: string, payload: PosOrderPayload) 
         ? String(oldOrder.table_number || payload.table_number || "").trim()
         : payload.order_type === "dine-in" ? payload.table_number.trim() : "",
     };
-    if (isExistingDineIn && !normalizeWhatsAppPhone(effectivePayload.customer_phone)) {
-      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the final table bill." };
+    if (!normalizeWhatsAppPhone(effectivePayload.customer_phone)) {
+      return { success: false, error: "Enter a valid WhatsApp number so the customer can receive the order bill." };
     }
     const tableError = await checkDineInTable(adminClient, effectivePayload);
     if (tableError) return { success: false, error: tableError };
@@ -172,7 +181,10 @@ export async function updatePosOrder(orderId: string, payload: PosOrderPayload) 
     if (newStatus) {
       updatePayload.status = newStatus;
     }
-    if (isExistingDineIn && oldOrder.status === "delivered" && newStatus === "preparing") {
+    if (oldOrder.source === "pos") {
+      updatePayload.whatsapp_bill_sent_at = null;
+      updatePayload.whatsapp_bill_error = null;
+    } else if (isExistingDineIn && oldOrder.status === "delivered" && newStatus === "preparing") {
       updatePayload.whatsapp_bill_sent_at = null;
       updatePayload.whatsapp_bill_error = null;
     }
@@ -196,7 +208,19 @@ export async function updatePosOrder(orderId: string, payload: PosOrderPayload) 
       await adminClient.from("order_items").insert(itemsToInsert);
     }
 
-    return { success: true };
+    if (oldOrder.source === "pos") {
+      const billResult = await sendPosOrderBill(orderId);
+      if (!billResult.sent) {
+        console.error("[updatePosOrder] POS order was updated but its bill was not sent:", billResult.error);
+      }
+      return {
+        success: true,
+        billSent: billResult.sent,
+        billError: billResult.sent ? null : billResult.error || "WhatsApp bill could not be sent.",
+      };
+    }
+
+    return { success: true, billSent: null, billError: null };
   } catch (error: any) {
     console.error("[updatePosOrder] Server action error:", error);
     return { success: false, error: "Failed to update order." };

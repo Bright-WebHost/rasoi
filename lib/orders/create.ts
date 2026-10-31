@@ -50,7 +50,6 @@ export function normalizeOrderType(value: unknown): 'delivery' | 'takeaway' | 'd
 export async function createCustomerOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
   const orderType = normalizeOrderType(input.orderType)
   if (!orderType) return fail(400, 'Invalid order type')
-  if (input.source === 'pwa' && !input.customerId) return fail(401, 'Please sign in before placing an order')
 
   const cartItems = input.cartItems
   if (!Array.isArray(cartItems) || cartItems.length === 0 || cartItems.length > MAX_CART_ITEMS) {

@@ -29,7 +29,9 @@ export async function POST(request: Request) {
       customerName: body.customer_name,
       customerPhone: body.customer_phone,
       customerId,
-      channelUserId: body.channel_user_id,
+      // Only the trusted WhatsApp backend may choose a channel identity. Public
+      // website checkout is keyed by the normalized phone inside the DB RPC.
+      channelUserId: isAiBackend && body.source === 'whatsapp' ? body.channel_user_id : null,
       idempotencyKey: body.idempotency_key,
       paymentMethod: body.payment_method,
       deliveryAddress: body.delivery_address,

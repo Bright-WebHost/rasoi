@@ -82,11 +82,16 @@ export default function BlastView() {
       const r = await sendBlast(pick.length ? "all" : filter, tpl, components, pick);
       if (!r.success || !r.data) throw new Error(r.error || "Blast did not complete. Check the workflow is active in n8n.");
       const d = r.data as { sent?: number; attempted?: number; error?: string; monthly_cap?: boolean };
+      const sentCount = Number(d.sent || 0);
+      const attemptedCount = Number(d.attempted ?? (pick.length || eligible));
       setRes(<>
-        <div className={`stat ${d.sent ? "" : "r"}`}><span>Sent of {d.attempted || 0}</span><b>{d.sent || 0}</b></div>
+        <div className={`stat ${sentCount ? "" : "r"}`}><span>Sent of {attemptedCount}</span><b>{sentCount}</b></div>
         {d.error ? <div className="err" style={{ marginTop: 10 }}><b>{d.monthly_cap ? "Cap reached:" : "Meta says:"}</b> {d.error}</div> : null}
       </>);
-      setSent((s) => s + Number(d.sent || 0));
+      setSent((s) => s + sentCount);
+      toast(d.error
+        ? `Blast finished: ${sentCount} of ${attemptedCount} sent. See the details below.`
+        : `Blast sent to ${sentCount} ${sentCount === 1 ? "contact" : "contacts"}.`);
     } catch (e) {
       setRes(<div className="err">{e instanceof Error ? e.message : "Blast did not complete."}</div>);
     } finally { setBusy(false); }

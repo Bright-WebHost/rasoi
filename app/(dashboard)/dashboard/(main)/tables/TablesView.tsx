@@ -10,7 +10,7 @@ import { useOc } from "../../DashShell";
 import { inRange, ist, lineItemsOf, rs } from "../../oc-utils";
 import { printOrderBill } from "@/lib/print/bill";
 import { useTables } from "../../oc-data";
-import { addTable, clearTable, fetchTableHistory, mergeTables, moveTable, resendClosedTableBill } from "./actions";
+import { addTable, clearTable, deleteTable, fetchTableHistory, mergeTables, moveTable, resendClosedTableBill } from "./actions";
 
 type Table = { id: string; table_number: string; capacity: number };
 type History = { id: string; order_number: string; total: number; status: string; created_at: string; whatsapp_bill_sent_at: string | null; whatsapp_bill_error: string | null };
@@ -29,8 +29,10 @@ export default function TablesView() {
   const [moveFor, setMoveFor] = useState<{ t: Table; o: DashboardOrder } | null>(null);
   const [mergeFor, setMergeFor] = useState<{ t: Table; o: DashboardOrder } | null>(null);
   const [hist, setHist] = useState<{ num: string; rows: History[] | null } | null>(null);
+  const [deleteFor, setDeleteFor] = useState<Table | null>(null);
   const [wantPrint, setWantPrint] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const { list, reload: loadTables } = useTables();
   const tables: Table[] = list || [];
@@ -96,6 +98,22 @@ export default function TablesView() {
     const r = await resendClosedTableBill(id);
     toast(r.success ? "Bill sent on WhatsApp" : r.error || "Bill could not be sent");
     if (hist) void showHistory(hist.num);
+  };
+  const removeTable = async () => {
+    if (!deleteFor) return;
+    setDeleteBusy(true);
+    const table = deleteFor;
+    try {
+      const r = await deleteTable(table.id);
+      if (!r.success) { toast(r.error || "Could not delete table"); return; }
+      toast(`Table ${table.table_number} deleted`);
+      setDeleteFor(null);
+      void loadTables();
+    } catch {
+      toast("Could not delete table");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
   const printQR = (num: string) => {
     const url = `${window.location.origin}/?table=${encodeURIComponent(num)}`;
@@ -196,11 +214,36 @@ export default function TablesView() {
                 ) : <button className="go" onClick={() => router.push(`/dashboard/pos?table=${encodeURIComponent(t.table_number)}`)}>Start order</button>}
                 <button onClick={() => printQR(t.table_number)}>QR</button>
                 <button onClick={() => void showHistory(t.table_number)}>History</button>
+                <button
+                  disabled={Boolean(o) || deleteBusy}
+                  title={o ? "Close the active order before deleting this table" : "Delete table"}
+                  style={{ color: "var(--red)", fontWeight: 800, opacity: o ? 0.55 : 1, cursor: o ? "not-allowed" : "pointer" }}
+                  onClick={() => setDeleteFor(t)}
+                >Delete</button>
               </div>
             </div>
           );
         })}
       </div>
+
+      {deleteFor ? (
+        <div className="modal">
+          <div className="mcard">
+            <h3>Delete table {deleteFor.table_number}?</h3>
+            <p style={{ fontSize: 12.5, color: "var(--muted)", margin: "0 0 12px" }}>
+              This removes the table from the floor. Closed order history will remain available.
+            </p>
+            <div className="mrow">
+              <button disabled={deleteBusy} onClick={() => setDeleteFor(null)}>Cancel</button>
+              <button
+                disabled={deleteBusy}
+                onClick={() => void removeTable()}
+                style={{ background: "var(--red)", color: "#fff", borderColor: "var(--red)", fontWeight: 800 }}
+              >{deleteBusy ? "Deleting…" : "Delete table"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {closeFor ? (
         <div className="modal">

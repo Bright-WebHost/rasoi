@@ -1291,23 +1291,36 @@ function Checkout({
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-[17px] font-bold mb-4 text-gray-800">Order Summary</h2>
           {drinkItems.length ? (
-            <div className="mb-5 rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
-              <h3 className="mb-1 text-[15px] font-extrabold text-gray-900">Add a drink</h3>
-              <p className="mb-3 text-[12px] font-medium text-gray-600">Pair your meal with a refreshing drink.</p>
-              <div className="grid gap-2 sm:grid-cols-2">
+            <section aria-label="Drink add-ons" className="mb-5 overflow-hidden rounded-2xl border border-orange-100 bg-[#fffaf6] p-4 sm:p-5">
+              <h3 className="mb-1 text-[12px] font-extrabold uppercase tracking-[0.16em] text-gray-500">Complete your meal</h3>
+              <p className="mb-4 text-[12px] font-medium text-gray-600">Add a refreshing drink to your order</p>
+              <div className="-mx-4 overflow-x-auto px-4 pb-2 no-scrollbar sm:-mx-5 sm:px-5">
+                <div className="flex w-max gap-3">
                 {drinkItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-orange-100 bg-white p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-bold text-gray-800">{item.name}</p>
-                      <p className="text-[12px] font-semibold text-gray-500">{money(item.price)}</p>
+                  <article key={item.id} className="w-[132px] shrink-0 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="relative aspect-square overflow-hidden rounded-xl bg-orange-50">
+                      <img src={item.image} alt={item.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        aria-label={`Add ${item.name} to your order`}
+                        onClick={() => onAddDrink(item)}
+                        className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-emerald-600 shadow-md transition hover:scale-105 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      >
+                        <Plus size={19} strokeWidth={2.8} />
+                      </button>
+                      {quantityFor(item.id) > 0 && (
+                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-gray-900/80 px-2 py-1 text-[10px] font-bold text-white">
+                          Added · {quantityFor(item.id)}
+                        </span>
+                      )}
                     </div>
-                    <button type="button" onClick={() => onAddDrink(item)} className="shrink-0 rounded-lg bg-[#e23744] px-3 py-1.5 text-[12px] font-extrabold text-white">
-                      {quantityFor(item.id) ? `Add · ${quantityFor(item.id)}` : "Add"}
-                    </button>
-                  </div>
+                    <p className="mt-2 line-clamp-2 min-h-10 text-[12px] font-bold leading-5 text-gray-800">{item.name}</p>
+                    <p className="mt-0.5 text-[13px] font-extrabold text-gray-900">{money(item.price)}</p>
+                  </article>
                 ))}
+                </div>
               </div>
-            </div>
+            </section>
           ) : null}
           <div className="flex flex-col gap-3.5 mb-5">
             {activeOrderItems && activeOrderItems.length > 0 && (

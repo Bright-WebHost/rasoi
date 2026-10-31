@@ -546,6 +546,10 @@
   .oc .acard{max-width:100%}
   .oc .mobonly{display:flex!important;gap:6px}
 }
+@media(min-width:641px) and (max-width:1180px){
+  .oc .board{grid-template-columns:repeat(4,minmax(252px,1fr));grid-template-rows:auto;grid-auto-flow:row;grid-auto-columns:auto;overflow-x:auto;overflow-y:hidden;padding-bottom:10px}
+  .oc .colbar>span:first-child{white-space:nowrap}
+}
 @media(min-width:861px){.oc .mobonly{display:none!important}}
 .oc .movrow{display:flex;gap:10px;margin-bottom:14px}
 .oc .mostat{flex:1;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(16,21,28,.05)}

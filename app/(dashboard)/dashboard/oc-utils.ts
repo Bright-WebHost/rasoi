@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { DashboardOrder } from "@/lib/orders/queries";
 
 export const rs = (n: unknown) => "₹" + Number(n || 0).toLocaleString("en-IN");
@@ -49,13 +49,16 @@ export function channelOf(o: Pick<DashboardOrder, "order_type" | "table_number">
 }
 
 const mobileQuery = "(max-width:860px)";
-function subscribe(cb: () => void) {
-  const mq = window.matchMedia(mobileQuery);
+function subscribe(cb: () => void, query = mobileQuery) {
+  const mq = window.matchMedia(query);
   mq.addEventListener("change", cb);
   return () => mq.removeEventListener("change", cb);
 }
-export function useIsMobile() {
-  return useSyncExternalStore(subscribe, () => window.matchMedia(mobileQuery).matches, () => false);
+export function useIsMobile(maxWidth = 860) {
+  const query = maxWidth === 860 ? mobileQuery : `(max-width:${maxWidth}px)`;
+  const subscribeToQuery = useCallback((cb: () => void) => subscribe(cb, query), [query]);
+  const getSnapshot = useCallback(() => window.matchMedia(query).matches, [query]);
+  return useSyncExternalStore(subscribeToQuery, getSnapshot, () => false);
 }
 
 export type LineItem = { name: string; quantity: number; lineTotal: number; notes: string | null; round: number; isNew: boolean };

@@ -108,7 +108,7 @@ export default function OrdersView() {
   const { orders, updateOrderStatus, refreshOrders, acknowledgeOrder } = useOrderManager();
   const { hasPerm } = useStaff();
   const { range, setRange, toast } = useOc();
-  const mobile = useIsMobile();
+  const mobile = useIsMobile(640);
   const [drawer, setDrawer] = useState(false);
   const [riderFor, setRiderFor] = useState<{ order: DashboardOrder; advance: boolean } | null>(null);
   const [restoreFor, setRestoreFor] = useState<DashboardOrder | null>(null);

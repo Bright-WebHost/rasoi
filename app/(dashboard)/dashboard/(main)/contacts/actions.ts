@@ -5,31 +5,31 @@ import { authorize } from "@/lib/auth/staff";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function setContactEnabled(phone: string, enabled: boolean) {
+export async function setContactBlocked(phone: string, blocked: boolean) {
   await authorize("contacts");
 
   const normalizedPhone = String(phone || "").replace(/\D/g, "");
-  if (normalizedPhone.length < 10 || normalizedPhone.length > 15 || typeof enabled !== "boolean") {
+  if (normalizedPhone.length < 10 || normalizedPhone.length > 15 || typeof blocked !== "boolean") {
     return { success: false, error: "Invalid contact update." };
   }
 
   try {
     const { data, error } = await createAdminClient()
       .from("customers")
-      .update({ opted_out: !enabled })
+      .update({ is_blocked: blocked })
       .eq("phone", normalizedPhone)
       .select("phone")
       .maybeSingle();
 
     if (error) {
-      console.error("setContactEnabled error:", error.message);
+      console.error("setContactBlocked error:", error.message);
       return { success: false, error: "Could not update this contact." };
     }
     if (!data) return { success: false, error: "Contact not found." };
 
     return { success: true };
   } catch (error) {
-    console.error("setContactEnabled error:", error);
+    console.error("setContactBlocked error:", error);
     return { success: false, error: "Could not update this contact." };
   }
 }

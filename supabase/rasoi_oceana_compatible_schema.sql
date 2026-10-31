@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
   blast_sent_at timestamptz,
   blast_read_at timestamptz,
   opted_out boolean NOT NULL DEFAULT false,
+  is_blocked boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

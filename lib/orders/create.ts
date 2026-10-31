@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkOrderRules, deliveryFeeFor, formatTime12h, isOpenAt } from '@/lib/settings'
 import { getActivePincodes, getSettings } from '@/lib/settings/server'
+import { normalizeWhatsAppPhone } from '@/lib/phone/whatsapp'
 
 /**
  * Creates a customer order (website checkout and WhatsApp checkout).
@@ -70,6 +71,20 @@ export async function createCustomerOrder(input: CreateOrderInput): Promise<Crea
   const resolvedName = str(input.customerName) || customerData?.name || 'Valued Customer'
   const resolvedPhone = str(input.customerPhone) || customerData?.phone || ''
   if (!resolvedPhone) return fail(400, 'Customer phone is required')
+  if (input.source === 'whatsapp') {
+    const normalizedPhone = normalizeWhatsAppPhone(resolvedPhone)
+    if (!normalizedPhone) return fail(400, 'Customer phone is invalid')
+    const { data: contact, error: contactError } = await adminClient
+      .from('customers')
+      .select('is_blocked')
+      .eq('phone', normalizedPhone)
+      .maybeSingle()
+    if (contactError) {
+      console.error('[createCustomerOrder] WhatsApp contact status lookup failed:', contactError.message)
+      return fail(503, 'Unable to verify WhatsApp ordering access. Please try again.')
+    }
+    if (contact?.is_blocked) return fail(403, 'WhatsApp ordering is disabled for this contact.', 'CONTACT_BLOCKED')
+  }
 
   const deliveryAddress = str(input.deliveryAddress)
   if (orderType === 'delivery' && !deliveryAddress) return fail(400, 'Delivery address is required for delivery orders')

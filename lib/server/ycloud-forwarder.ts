@@ -8,6 +8,13 @@ const fallbackAppBaseUrl = 'https://rasoi-pied.vercel.app'
 type InboxRow = { id: string; provider_event_id: string; attempts: number; payload: unknown }
 type ForwarderAdminClient = {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown | null }>
+  from(table: 'customers'): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        maybeSingle(): Promise<{ data: { is_blocked: boolean } | null; error: unknown | null }>
+      }
+    }
+  }
   from(table: 'ycloud_message_status_events'): {
     upsert(row: Record<string, unknown>, options: { onConflict: string; ignoreDuplicates: boolean }): Promise<{ error: unknown | null }>
   }
@@ -29,6 +36,25 @@ type RiderDeliveryAction =
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function normalizeInboundPhone(value: unknown): string | null {
+  let digits = String(value ?? '').replace(/\D/g, '')
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
+  if (digits.length === 10) digits = `91${digits}`
+  return digits.length >= 11 && digits.length <= 15 ? digits : null
+}
+
+export function ycloudInboundPhone(payloadValue: unknown): string | null {
+  const payload = asObject(payloadValue)
+  const data = asObject(payload.data)
+  const message = asObject(
+    payload.whatsappInboundMessage || payload.whatsappMessage || payload.message ||
+      data.whatsappInboundMessage || data.whatsappMessage || data.message,
+  )
+  const sender = asObject(message.sender)
+  return normalizeInboundPhone(message.from || sender.phone || data.from || payload.from)
 }
 
 function normalizeHttpsBaseUrl(value: string | undefined): string {
@@ -129,13 +155,25 @@ export async function drainYCloudInbox(
         if (stored.error && statusCode !== '23505') errorCode = 'status_persist_failed'
       } else {
         const riderAction = riderDeliveryAction(payload)
+        const inboundEvent = payload.type === 'whatsapp.inbound_message.received'
+        const inboundPhone = inboundEvent ? ycloudInboundPhone(payload) : null
+        let contactBlocked = inboundEvent && !inboundPhone
+        if (inboundPhone) {
+          const { data: contact, error: contactError } = await admin
+            .from('customers')
+            .select('is_blocked')
+            .eq('phone', inboundPhone)
+            .maybeSingle()
+          if (contactError) errorCode = 'contact_block_check_failed'
+          else contactBlocked = contact?.is_blocked === true
+        }
         let destination = config.url
         let requestBody = row.payload
 
         if (riderAction.recognized) {
           if ('error' in riderAction) {
-            errorCode = `rider_action_${riderAction.error}`
-          } else {
+            if (!inboundPhone || !contactBlocked) errorCode = `rider_action_${riderAction.error}`
+          } else if (!contactBlocked) {
             try {
               const appUrl = new URL(config.appBaseUrl)
               if (appUrl.protocol !== 'https:') throw new Error('insecure_app_url')
@@ -151,7 +189,7 @@ export async function drainYCloudInbox(
           }
         }
 
-        if (!errorCode) {
+        if (!errorCode && !contactBlocked) {
           const res = await fetchImpl(destination, {
             method: 'POST',
             headers: {

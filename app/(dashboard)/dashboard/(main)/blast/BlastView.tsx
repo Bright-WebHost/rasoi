@@ -34,7 +34,7 @@ export default function BlastView() {
     setPick([...readPick()]);
     const sb = db();
     Promise.all([
-      sb.from("customers").select("*", { count: "exact", head: true }).eq("opted_out", false),
+      sb.from("customers").select("*", { count: "exact", head: true }).eq("opted_out", false).eq("is_blocked", false),
       sb.from("blast_log").select("*", { count: "exact", head: true }).eq("status", "sent").gte("created_at", monthStartIST()),
     ]).then(([c, s]) => { setEligible(c.count || 0); setSent(s.count || 0); });
     getYCloudTemplates().then((r) => {

@@ -105,6 +105,10 @@ Next production verification: enable YCloud message status events only after con
 
 Verification of the current local code: `npx tsc --noEmit`, targeted ESLint, and `npx next build` pass. `node --test test/*.mjs` passes 14 tests; the opt-in DB test is skipped unless `RUN_DB_TESTS=1` is set. The opt-in integration suite passed separately against the production database with self-cleaning test rows. Whole-repo lint still has pre-existing failures.
 
+## Contact blocking (local implementation; migration pending)
+
+The Contacts-page WhatsApp switch now uses a separate `customers.is_blocked` flag and no longer changes marketing opt-out. The inbox drain drops blocked senders before forwarding to n8n, WhatsApp checkout and direct AI order creation reject blocked numbers, and a database trigger blocks any remaining direct WhatsApp order insert. Incoming events are acknowledged and retained in the inbox audit, but no reply or order workflow is run for a blocked sender. Apply `supabase/migrations/20261031_contact_whatsapp_blocking.sql` to the Rasoi database before deploying this code; it has not been applied to production.
+
 ## Next milestones
 
 1. Inbound configuration, workflow activation, the paused-reply test, and dashboard access are confirmed. Orders are open. Fresh post-unpause WhatsApp ordering, status callbacks, and full delivery operations still need verification/setup.

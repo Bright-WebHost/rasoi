@@ -3,6 +3,7 @@ import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkOrderRules } from '@/lib/settings'
 import { getActivePincodes, getSettings } from '@/lib/settings/server'
+import { normalizeWhatsAppPhone } from '@/lib/phone/whatsapp'
 
 type ActiveMenuItem = { id: string; available: boolean }
 type ActiveMenuVariant = { id: string; menu_item_id: string; is_active: boolean }
@@ -78,6 +79,23 @@ export async function POST(request: Request) {
   const customerId = typeof body.customer_id === 'string' ? body.customer_id : typeof body.customerId === 'string' ? body.customerId : null
   const customerName = typeof body.customer_name === 'string' ? body.customer_name : typeof body.customerName === 'string' ? body.customerName : 'WhatsApp Customer'
   const customerPhone = typeof body.customer_phone === 'string' ? body.customer_phone : typeof body.customerPhone === 'string' ? body.customerPhone : ''
+  const normalizedPhone = normalizeWhatsAppPhone(customerPhone)
+  if (!normalizedPhone) {
+    return NextResponse.json({ error: 'A valid customer phone is required.' }, { status: 400 })
+  }
+  const adminClient = createAdminClient()
+  const { data: contact, error: contactError } = await adminClient
+    .from('customers')
+    .select('is_blocked')
+    .eq('phone', normalizedPhone)
+    .maybeSingle()
+  if (contactError) {
+    console.error('[AI order] WhatsApp contact status lookup failed:', contactError.message)
+    return NextResponse.json({ error: 'Unable to verify WhatsApp ordering access.' }, { status: 503 })
+  }
+  if (contact?.is_blocked) {
+    return NextResponse.json({ error: 'WhatsApp ordering is disabled for this contact.', code: 'CONTACT_BLOCKED' }, { status: 403 })
+  }
   const orderType = normalizeOrderType(body.order_type ?? body.type)
   const deliveryAddress = typeof body.delivery_address === 'string' ? body.delivery_address : typeof body.deliveryAddress === 'string' ? body.deliveryAddress : null
   const landmark = typeof body.landmark === 'string' ? body.landmark : null
@@ -127,8 +145,6 @@ export async function POST(request: Request) {
   if (ruleError) {
     return NextResponse.json({ error: ruleError, code: 'ORDER_RULES' }, { status: 400 })
   }
-
-  const adminClient = createAdminClient()
 
   const menuItemIds = [...new Set(cartItems.map((item) => item.menu_item_id))]
 

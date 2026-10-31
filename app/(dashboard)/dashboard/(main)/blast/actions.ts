@@ -100,27 +100,46 @@ export async function sendBlast(filter: string, templateName: string, components
     const webhookUrl = process.env.N8N_BLAST_WEBHOOK_URL?.trim();
     if (!webhookUrl) return { success: false, error: "N8N_BLAST_WEBHOOK_URL not configured" };
 
-    let eligiblePhones = phones;
-    let excludedContacts = 0;
-    if (phones.length) {
-      if (phones.length > 400) return { success: false, error: "Select no more than 400 contacts at a time." };
-      const selectedPhones = [...new Set(phones.map((phone) => String(phone).replace(/\D/g, "")).filter((phone) => phone.length >= 10 && phone.length <= 15))];
-      const supabase = createAdminClient();
-      const { data: eligibleCustomers, error: customerError } = await supabase
+    if (!["all", "active_30", "repeat"].includes(filter)) return { success: false, error: "Invalid campaign audience." };
+    if (phones.length > 400) return { success: false, error: "Select no more than 400 contacts at a time." };
+    const selectedPhones = [...new Set(phones.map((phone) => String(phone).replace(/\D/g, "")).filter((phone) => phone.length >= 10 && phone.length <= 15))];
+    if (phones.length && !selectedPhones.length) return { success: false, error: "No valid contacts were selected." };
+
+    const supabase = createAdminClient();
+    const eligibleCustomers: Array<{ phone: string; total_orders: number | null; last_order_date: string | null }> = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error: customerError } = await supabase
         .from("customers")
-        .select("phone")
+        .select("phone,total_orders,last_order_date")
         .eq("opted_out", false)
-        .in("phone", selectedPhones);
+        .eq("is_blocked", false)
+        .order("phone")
+        .range(offset, offset + 499);
       if (customerError) {
         console.error("sendBlast recipient validation failed:", customerError.message);
         return { success: false, error: "Could not verify campaign contacts. Please try again." };
       }
+      eligibleCustomers.push(...(data || []));
+      if (!data || data.length < 500) break;
+    }
 
-      eligiblePhones = (eligibleCustomers || []).map((customer: { phone: string }) => customer.phone);
-      excludedContacts = selectedPhones.length - eligiblePhones.length;
-      if (!eligiblePhones.length) {
-        return { success: false, error: "None of the selected contacts are enabled for campaigns." };
-      }
+    const selectedSet = new Set(selectedPhones);
+    const now = Date.now();
+    const eligiblePhones = eligibleCustomers
+      .filter((customer) => {
+        if (phones.length && !selectedSet.has(customer.phone)) return false;
+        if (!phones.length && filter === "repeat" && Number(customer.total_orders || 0) < 2) return false;
+        if (!phones.length && filter === "active_30") {
+          if (!customer.last_order_date) return false;
+          const ageDays = (now - new Date(customer.last_order_date).getTime()) / 86400000;
+          if (ageDays > 30) return false;
+        }
+        return true;
+      })
+      .map((customer) => customer.phone);
+    const excludedContacts = phones.length ? selectedPhones.length - eligiblePhones.length : 0;
+    if (!eligiblePhones.length) {
+      return { success: false, error: phones.length ? "None of the selected contacts are enabled for WhatsApp campaigns." : "No eligible WhatsApp contacts match this audience." };
     }
 
     const payload = {

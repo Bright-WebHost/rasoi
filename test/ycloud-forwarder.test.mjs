@@ -1,9 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { drainYCloudInbox, forwarderConfig, riderDeliveryAction } from '../lib/server/ycloud-forwarder.ts'
 
 const config = { url: 'https://n8n.example.test/webhook/x', secret: 'synthetic-secret' }
-function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'retryable') {
+function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'retryable', blockedPhones = []) {
   const calls = []
   return {
     calls,
@@ -13,6 +14,18 @@ function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'ret
       return Promise.resolve({ data: finishStatus(args), error: null })
     },
     from(table) {
+      if (table === 'customers') {
+        return {
+          select: (columns) => ({
+            eq: (column, value) => ({
+              maybeSingle: async () => {
+                calls.push({ table, columns, column, value })
+                return { data: blockedPhones.includes(value) ? { is_blocked: true } : { is_blocked: false }, error: null }
+              },
+            }),
+          }),
+        }
+      }
       return { upsert: async (row, options) => {
         calls.push({ table, row, options })
         return { error: null }
@@ -20,7 +33,16 @@ function fakeAdmin(rows, finishStatus = (args) => args.p_ok ? 'processed' : 'ret
     },
   }
 }
-const row = (n) => ({ id: `id-${n}`, provider_event_id: `evt-${n}`, attempts: 1, payload: { id: `evt-${n}`, type: 'whatsapp.inbound_message.received' } })
+const row = (n) => ({
+  id: `id-${n}`,
+  provider_event_id: `evt-${n}`,
+  attempts: 1,
+  payload: {
+    id: `evt-${n}`,
+    type: 'whatsapp.inbound_message.received',
+    whatsappInboundMessage: { id: `msg-${n}`, from: '+919999999999', text: { body: 'Hello' } },
+  },
+})
 
 test('forwarding is off unless explicitly enabled with an https url and secret', () => {
   assert.equal(forwarderConfig({}), null)
@@ -53,7 +75,55 @@ test('sends the header secret and event id, and records success', async () => {
   assert.equal(sent.headers['x-rasoi-whatsapp-secret'], 'synthetic-secret')
   assert.equal(sent.headers['x-rasoi-event-id'], 'evt-1')
   assert.deepEqual(JSON.parse(sent.body), row(1).payload)
-  assert.deepEqual(admin.calls[1].args, { p_id: 'id-1', p_attempt: 1, p_ok: true, p_error_code: null })
+  assert.deepEqual(admin.calls.find((call) => call.fn === 'finish_ycloud_event').args, { p_id: 'id-1', p_attempt: 1, p_ok: true, p_error_code: null })
+  assert.equal(result.processed, 1)
+})
+
+test('blocked WhatsApp contacts are not forwarded to the customer workflow', async () => {
+  const admin = fakeAdmin([row(10)], undefined, ['919999999999'])
+  let outboundRequests = 0
+  const result = await drainYCloudInbox(admin, config, { fetchImpl: async () => {
+    outboundRequests += 1
+    return new Response(null, { status: 200 })
+  } })
+  assert.equal(outboundRequests, 0)
+  assert.equal(admin.calls.find((call) => call.fn === 'finish_ycloud_event').args.p_ok, true)
+  assert.equal(result.processed, 1)
+})
+
+test('blocked WhatsApp contacts cannot trigger rider actions', async () => {
+  const admin = fakeAdmin([{
+    ...row(12),
+    payload: {
+      id: 'evt-12',
+      type: 'whatsapp.inbound_message.received',
+      whatsappInboundMessage: {
+        id: 'msg-12',
+        from: '+919999999999',
+        type: 'interactive',
+        interactive: { button_reply: { id: 'deliver_collected_RAS-212' } },
+      },
+    },
+  }], undefined, ['919999999999'])
+  let outboundRequests = 0
+  const result = await drainYCloudInbox(admin, { ...config, appBaseUrl: 'https://rasoi.example.test' }, { fetchImpl: async () => {
+    outboundRequests += 1
+    return new Response(null, { status: 200 })
+  } })
+  assert.equal(outboundRequests, 0)
+  assert.equal(admin.calls.find((call) => call.fn === 'finish_ycloud_event').args.p_ok, true)
+  assert.equal(result.processed, 1)
+})
+
+test('inbound messages without a verifiable sender are not forwarded', async () => {
+  const missingSender = row(11)
+  missingSender.payload.whatsappInboundMessage.from = undefined
+  let outboundRequests = 0
+  const result = await drainYCloudInbox(fakeAdmin([missingSender]), config, { fetchImpl: async () => {
+    outboundRequests += 1
+    return new Response(null, { status: 200 })
+  } })
+  assert.equal(outboundRequests, 0)
   assert.equal(result.processed, 1)
 })
 
@@ -114,7 +184,7 @@ test('n8n down, auth rejected, and timeouts are recorded as retryable, not lost'
   ]
   let i = 0
   const result = await drainYCloudInbox(admin, config, { fetchImpl: () => responses[i++]() })
-  assert.deepEqual(admin.calls.slice(1).map(c => c.args.p_error_code), ['http_503', 'http_403', 'timeout'])
+  assert.deepEqual(admin.calls.filter(c => c.fn === 'finish_ycloud_event').map(c => c.args.p_error_code), ['http_503', 'http_403', 'timeout'])
   assert.equal(result.retryable, 3)
 })
 
@@ -146,4 +216,11 @@ test('YCloud status events are stored locally and never sent to the inbound work
   assert.equal(persisted.row.provider_event_id, statusEvent.id)
   assert.equal(persisted.row.status, 'read')
   assert.equal(result.processed, 1)
+})
+
+test('migration adds a WhatsApp block flag and rejects blocked WhatsApp orders', () => {
+  const migration = fs.readFileSync(new URL('../supabase/migrations/20261031_contact_whatsapp_blocking.sql', import.meta.url), 'utf8')
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS is_blocked boolean NOT NULL DEFAULT false/)
+  assert.match(migration, /reject_blocked_whatsapp_order/)
+  assert.match(migration, /NEW\.source[\s\S]*'whatsapp'[\s\S]*c\.is_blocked/)
 })

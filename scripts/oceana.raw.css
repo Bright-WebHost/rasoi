@@ -546,7 +546,8 @@ textarea.f2{resize:vertical;min-height:58px;font-family:inherit}
   .mobonly{display:flex!important;gap:6px}
 }
 @media(min-width:641px) and (max-width:1180px){
-  .board{grid-template-columns:repeat(4,minmax(252px,1fr));grid-template-rows:auto;grid-auto-flow:row;grid-auto-columns:auto;overflow-x:auto;overflow-y:hidden;padding-bottom:10px}
+  .board{display:flex;flex-flow:row nowrap;gap:14px;align-items:flex-start;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding-bottom:10px}
+  .board>.col{flex:0 0 252px}
   .colbar>span:first-child{white-space:nowrap}
 }
 @media(min-width:861px){.mobonly{display:none!important}}

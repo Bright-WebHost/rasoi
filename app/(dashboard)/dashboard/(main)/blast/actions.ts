@@ -165,8 +165,9 @@ export async function sendBlast(filter: string, templateName: string, components
       return { success: false, error: "Failed to dispatch blast via webhook" };
     }
 
-    const data = await res.json();
-    return { success: true, data: { ...data, excluded_contacts: excludedContacts } };
+    const response = await res.json();
+    const data = Array.isArray(response) ? {} : response;
+    return { success: true, data: { ...data, response, excluded_contacts: excludedContacts } };
   } catch (err: any) {
     console.error("sendBlast error:", err);
     return { success: false, error: err.message || "Failed to send blast" };

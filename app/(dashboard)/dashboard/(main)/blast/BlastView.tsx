@@ -8,6 +8,7 @@ import { useOc } from "../../DashShell";
 import { db } from "../../oc-data";
 import { PICK_KEY, readPick } from "../contacts/ContactsView";
 import { getYCloudTemplates, sendBlast, uploadYCloudMedia } from "./actions";
+import { getBlastAttemptedCount, getBlastSentCount } from "@/lib/orders/blast-result";
 
 type Template = { name: string; language?: string; components?: Array<{ type: string; format?: string; buttons?: Array<{ type: string; url?: string }> }> };
 const MONTHLY_CAP = 1000;
@@ -81,18 +82,22 @@ export default function BlastView() {
       }
       const r = await sendBlast(pick.length ? "all" : filter, tpl, components, pick);
       if (!r.success || !r.data) throw new Error(r.error || "Blast did not complete. Check the workflow is active in n8n.");
-      const d = r.data as { sent?: number; attempted?: number; error?: string; monthly_cap?: boolean; excluded_contacts?: number };
-      const sentCount = Number(d.sent || 0);
-      const attemptedCount = Number(d.attempted ?? (pick.length ? pick.length - (d.excluded_contacts || 0) : eligible));
+      const d = r.data as { error?: string; monthly_cap?: boolean; excluded_contacts?: number };
+      const sentCount = getBlastSentCount(d);
+      const attemptedCount = getBlastAttemptedCount(d) ?? (pick.length ? pick.length - (d.excluded_contacts || 0) : eligible);
       setRes(<>
-        <div className={`stat ${sentCount ? "" : "r"}`}><span>Sent of {attemptedCount}</span><b>{sentCount}</b></div>
+        {sentCount === undefined
+          ? <div className="stat"><span>Blast submitted</span><b>Sent count unavailable</b></div>
+          : <div className={`stat ${sentCount ? "" : "r"}`}><span>Sent of {attemptedCount}</span><b>{sentCount}</b></div>}
         {d.excluded_contacts ? <div className="err" style={{ marginTop: 10 }}>{d.excluded_contacts} disabled contact{d.excluded_contacts === 1 ? " was" : "s were"} excluded from this campaign.</div> : null}
         {d.error ? <div className="err" style={{ marginTop: 10 }}><b>{d.monthly_cap ? "Cap reached:" : "Meta says:"}</b> {d.error}</div> : null}
       </>);
-      setSent((s) => s + sentCount);
+      if (sentCount !== undefined) setSent((s) => s + sentCount);
       toast(d.error
-        ? `Blast finished: ${sentCount} of ${attemptedCount} sent. See the details below.`
-        : `Blast sent to ${sentCount} ${sentCount === 1 ? "contact" : "contacts"}.`);
+        ? `Blast finished${sentCount === undefined ? "" : `: ${sentCount} of ${attemptedCount} sent`}. See the details below.`
+        : sentCount === undefined
+          ? "Blast submitted successfully. The workflow did not return a sent count."
+          : `Blast sent to ${sentCount} ${sentCount === 1 ? "contact" : "contacts"}.`);
     } catch (e) {
       setRes(<div className="err">{e instanceof Error ? e.message : "Blast did not complete."}</div>);
     } finally { setBusy(false); }

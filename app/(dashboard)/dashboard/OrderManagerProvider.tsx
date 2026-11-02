@@ -8,31 +8,6 @@ import { normalizeDashboardOrderType } from "@/lib/orders/type-utils";
 import { useStaff } from "@/components/providers/StaffProvider";
 import { isAuthError, redirectIfSessionExpired } from "@/lib/auth/session-expired";
 
-type WindowWithWebkitAudioContext = Window & { webkitAudioContext?: typeof AudioContext };
-
-function playOrderChime(context: AudioContext) {
-  const startAt = context.currentTime + 0.01;
-  const duration = 1.35;
-  const oscillator = context.createOscillator();
-  const volume = context.createGain();
-  oscillator.type = "sawtooth";
-  oscillator.frequency.setValueAtTime(620, startAt);
-  for (let cycle = 0; cycle < 3; cycle++) {
-    const cycleStart = startAt + cycle * 0.42;
-    oscillator.frequency.setValueAtTime(620, cycleStart);
-    oscillator.frequency.linearRampToValueAtTime(1180, cycleStart + 0.21);
-    oscillator.frequency.linearRampToValueAtTime(620, cycleStart + 0.42);
-  }
-  volume.gain.setValueAtTime(0.0001, startAt);
-  volume.gain.linearRampToValueAtTime(0.2, startAt + 0.04);
-  volume.gain.setValueAtTime(0.2, startAt + duration - 0.12);
-  volume.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-  oscillator.connect(volume);
-  volume.connect(context.destination);
-  oscillator.start(startAt);
-  oscillator.stop(startAt + duration);
-}
-
 interface OrderManagerContextType {
   orders: DashboardOrder[];
   queuedNewOrders: DashboardOrder[];
@@ -78,49 +53,38 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
 
   const supabase = useRef(createClient());
   const acknowledgedIds = useRef<Set<string>>(new Set());
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const soundLoopRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingUpdates = useRef<Set<string>>(new Set());
   const ordersRef = useRef<DashboardOrder[]>(initialOrders);
 
-  const getAudioContext = useCallback(() => {
-    if (typeof window === "undefined") return null;
-    if (audioContextRef.current) return audioContextRef.current;
-    const AudioContextConstructor = window.AudioContext || (window as WindowWithWebkitAudioContext).webkitAudioContext;
-    if (!AudioContextConstructor) return null;
-    try {
-      audioContextRef.current = new AudioContextConstructor();
-      return audioContextRef.current;
-    } catch {
-      return null;
-    }
-  }, []);
   const queuedOrderKey = queuedNewOrders.map((order) => order.id).join(",");
 
-  const playChime = useCallback(() => {
-    const context = getAudioContext();
-    if (!context) return;
-    const play = () => { if (context.state === "running") playOrderChime(context); };
-    if (context.state === "running") play();
-    else void context.resume().then(play).catch((err) => console.warn("Order sound could not resume", err));
-  }, [getAudioContext]);
-
   const stopSound = useCallback(() => {
-    if (soundLoopRef.current !== null) {
-      window.clearInterval(soundLoopRef.current);
-      soundLoopRef.current = null;
-    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
   }, []);
+
+  const startSound = useCallback(() => {
+    if (!soundEnabled || !audioRef.current) return;
+    void audioRef.current.play().catch((err) => console.warn("Order sound could not play", err));
+  }, [soundEnabled]);
 
   const enableSound = useCallback(() => {
     setSoundEnabled(true);
     localStorage.setItem("rasoi_sound_enabled", "true");
-    const context = getAudioContext();
-    if (!context) return;
-    const preview = () => { if (queuedNewOrders.length === 0) playOrderChime(context); };
-    if (context.state === "running") preview();
-    else void context.resume().then(preview).catch((err) => console.warn("Order sound could not unlock", err));
-  }, [getAudioContext, queuedNewOrders.length]);
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (queuedOrderKey) {
+      void audio.play().catch((err) => console.warn("Order sound could not play", err));
+      return;
+    }
+    void audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+    }).catch((err) => console.warn("Order sound could not unlock", err));
+  }, [queuedOrderKey]);
 
   const toggleSound = useCallback(() => {
     if (soundEnabled) {
@@ -134,13 +98,15 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
 
   useEffect(() => {
     const unlock = () => {
-      const context = getAudioContext();
-      if (!context) return;
-      void context.resume().then(() => {
+      const audio = audioRef.current;
+      if (!soundEnabled || !audio) return;
+      void audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
         document.removeEventListener("pointerdown", unlock);
         document.removeEventListener("keydown", unlock);
-        if (soundEnabled && queuedOrderKey) playOrderChime(context);
-      }).catch(() => { /* a later user gesture can unlock audio */ });
+        if (soundEnabled && queuedOrderKey) startSound();
+      }).catch((err) => console.warn("Order sound could not unlock", err));
     };
     document.addEventListener("pointerdown", unlock);
     document.addEventListener("keydown", unlock);
@@ -148,15 +114,14 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       document.removeEventListener("pointerdown", unlock);
       document.removeEventListener("keydown", unlock);
     };
-  }, [getAudioContext, queuedOrderKey, soundEnabled]);
+  }, [queuedOrderKey, soundEnabled, startSound]);
 
   useEffect(() => {
     stopSound();
     if (!soundEnabled || !queuedOrderKey) return;
-    playChime();
-    soundLoopRef.current = window.setInterval(playChime, 2200);
+    startSound();
     return stopSound;
-  }, [playChime, queuedOrderKey, soundEnabled, stopSound]);
+  }, [queuedOrderKey, soundEnabled, startSound, stopSound]);
 
   // Initial Sync & Polling
   const refreshOrders = useCallback(async () => {
@@ -476,6 +441,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       enableSound,
       soundEnabled
     }}>
+      <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" loop preload="auto" style={{ display: "none" }} />
       {children}
     </OrderManagerContext.Provider>
   );

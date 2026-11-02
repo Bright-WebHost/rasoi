@@ -9,7 +9,7 @@ import { useOrderManager } from "../../OrderManagerProvider";
 import { useOc } from "../../DashShell";
 import { db, isMissingTable, useMenu, useStockData } from "../../oc-data";
 import { NotMigrated } from "../../StockKit";
-import { ist, pct, rangeStart, rs, type RangeState } from "../../oc-utils";
+import { ist, pct, rangeEnd, rangeStart, rs, type RangeState } from "../../oc-utils";
 import { dishMargins, RangeChips } from "../stock/StockView";
 import { createExpense, deleteExpense } from "./actions";
 
@@ -18,9 +18,7 @@ type Bounds = { start: number; end: number };
 
 function bounds(r: RangeState): Bounds {
   const start = rangeStart(r).getTime();
-  if (r.range === "yesterday") return { start, end: start + 86400000 };
-  if (r.range === "custom" && r.to) return { start, end: new Date(r.to + "T00:00:00+05:30").getTime() + 86400000 };
-  return { start, end: Date.now() };
+  return { start, end: rangeEnd(r) };
 }
 function previous(r: RangeState): Bounds | null {
   if (r.range === "all" || r.range === "custom") return null;

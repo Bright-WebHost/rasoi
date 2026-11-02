@@ -1075,11 +1075,11 @@ function Checkout({
     setDetails((prev: CustomerDetails) => ({ ...prev, address: addr.address, landmark: addr.landmark || '', pincode: addr.pincode || '' }));
   };
 
-  return <main className="min-h-screen bg-gray-50 pt-4 pb-20 px-4">
-    <div className="max-w-[768px] mx-auto">
+  return <main className="min-h-screen min-w-0 bg-gray-50 pt-4 pb-20 px-4">
+    <div className="mx-auto min-w-0 max-w-[768px]">
       <button onClick={onBack} className="flex items-center gap-1.5 text-gray-800 mb-6 font-semibold"><ChevronLeft size={22} /> Back</button>
-      <div className="grid gap-6">
-        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+      <div className="grid min-w-0 gap-6">
+        <section className="min-w-0 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h1 className="text-2xl font-extrabold mb-6 text-gray-900">Complete Order</h1>
           {orderType !== "dine-in" && canDeliver && canTakeaway && (
             <div className="mb-6">
@@ -1288,7 +1288,7 @@ function Checkout({
           </div>
         </section>
         
-        <section className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <section className="min-w-0 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <h2 className="text-[17px] font-bold mb-4 text-gray-800">Order Summary</h2>
           {drinkItems.length ? (
             <section aria-label="Drink add-ons" className="mb-5 overflow-hidden rounded-2xl border border-orange-100 bg-[#fffaf6] p-4 sm:p-5">

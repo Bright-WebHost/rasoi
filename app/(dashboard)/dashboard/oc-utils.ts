@@ -30,6 +30,14 @@ export function rangeStart({ range, from }: RangeState) {
   return new Date(0);
 }
 
+export function rangeEnd({ range, to }: RangeState) {
+  const dayMs = 86400000;
+  if (range === "yesterday") return rangeStart({ range, from: "", to: "" }).getTime() + dayMs;
+  if (range === "custom") return to ? new Date(to + "T00:00:00+05:30").getTime() + dayMs : Date.now();
+  const todayIST = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  return new Date(todayIST + "T00:00:00+05:30").getTime() + dayMs;
+}
+
 export function inRange(o: { created_at: string }, r: RangeState) {
   const t = new Date(o.created_at).getTime();
   const s = rangeStart(r).getTime();

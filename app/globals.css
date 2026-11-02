@@ -126,6 +126,9 @@ button { cursor: pointer; }
   border-color: #E23744; 
   box-shadow: 0 0 0 1px #E23744;
 }
+@media (max-width: 640px) {
+  .checkout-input, select { font-size: 16px; }
+}
 .field-label { 
   color: #696969; 
   display: block; 
@@ -209,4 +212,3 @@ button { cursor: pointer; }
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-

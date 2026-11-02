@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server'
 import { timingSafeSecretEquals } from '@/lib/server/internal-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { applyAiCartChange, type AiCartLine } from '@/lib/server/ai-cart'
 
-type CartItem = {
-  menu_item_id: string
-  item_name: string
-  unit_price: number
-  quantity: number
-}
+type CartItem = AiCartLine
 
 type IncomingItem = Record<string, unknown>
 
@@ -156,24 +152,32 @@ export async function POST(request: Request) {
       continue
     }
 
-    const existingItemIndex = currentItems.findIndex(item => item.menu_item_id === actualMenuId)
     if (action === 'add' || action === 'update') {
       const parsedQuantity = Number(itemToProcess.quantity)
-      const quantity = Number.isFinite(parsedQuantity) ? parsedQuantity || 1 : 1
-      if (quantity <= 0) {
-        if (existingItemIndex > -1) currentItems.splice(existingItemIndex, 1)
-      } else if (existingItemIndex > -1) {
-        currentItems[existingItemIndex].quantity = action === 'add' ? currentItems[existingItemIndex].quantity + quantity : quantity
-      } else {
-        currentItems.push({
-          menu_item_id: menuItem.id,
-          item_name: menuItem.item_name,
-          unit_price: Number(menuItem.price),
-          quantity,
-        })
+      const quantity = action === 'add'
+        ? Number.isFinite(parsedQuantity) ? parsedQuantity || 1 : 1
+        : Number.isFinite(parsedQuantity) ? parsedQuantity : 1
+      if (!Number.isInteger(quantity) || quantity < 0 || quantity > 20 || (action === 'add' && quantity === 0)) {
+        errors.push('Choose a quantity between 1 and 20')
+        continue
       }
+      currentItems = applyAiCartChange(currentItems, action, {
+        menu_item_id: menuItem.id,
+        item_name: menuItem.item_name,
+        unit_price: Number(menuItem.price),
+      }, quantity)
     } else if (action === 'remove') {
-      if (existingItemIndex > -1) currentItems.splice(existingItemIndex, 1)
+      const parsedQuantity = Number(itemToProcess.quantity)
+      const quantity = Number.isFinite(parsedQuantity) ? parsedQuantity || 1 : 1
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        errors.push('Choose how many items to remove')
+        continue
+      }
+      currentItems = applyAiCartChange(currentItems, action, {
+        menu_item_id: menuItem.id,
+        item_name: menuItem.item_name,
+        unit_price: Number(menuItem.price),
+      }, quantity)
     }
   }
 

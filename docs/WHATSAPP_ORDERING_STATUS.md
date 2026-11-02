@@ -107,7 +107,9 @@ Verification of the current local code: `npx tsc --noEmit`, targeted ESLint, and
 
 ## Contact blocking (local implementation; migration pending)
 
-The Contacts-page WhatsApp switch now uses a separate `customers.is_blocked` flag and no longer changes marketing opt-out. The inbox drain drops blocked senders before forwarding to n8n, WhatsApp checkout and direct AI order creation reject blocked numbers, and a database trigger blocks any remaining direct WhatsApp order insert. Incoming events are acknowledged and retained in the inbox audit, but no reply or order workflow is run for a blocked sender. Apply `supabase/migrations/20261031_contact_whatsapp_blocking.sql` to the Rasoi database before deploying this code; it has not been applied to production.
+The Contacts-page WhatsApp switch now uses a separate `customers.is_blocked` flag and no longer changes marketing opt-out. The inbox drain drops blocked senders before forwarding to n8n, WhatsApp checkout and direct AI order creation reject blocked numbers, and a database trigger blocks any remaining direct WhatsApp order insert. Incoming events are acknowledged and retained in the inbox audit, but no reply or order workflow is run for a blocked sender. Apply `supabase/migrations/20261031_contact_whatsapp_blocking.sql` to the Rasoi database before deploying this code.
+
+Website/WhatsApp order creation is also guarded against stale clients and alternate insert paths by `supabase/migrations/20261102_enforce_customer_order_settings.sql`. It checks the current global pause and enabled order types at the database insert boundary; POS orders are unaffected.
 
 ## Next milestones
 

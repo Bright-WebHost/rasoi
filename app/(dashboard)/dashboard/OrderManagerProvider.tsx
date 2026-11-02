@@ -11,25 +11,26 @@ import { isAuthError, redirectIfSessionExpired } from "@/lib/auth/session-expire
 type WindowWithWebkitAudioContext = Window & { webkitAudioContext?: typeof AudioContext };
 
 function playOrderChime(context: AudioContext) {
-  const startAt = context.currentTime;
-  for (const note of [
-    { offset: 0, frequency: 880 },
-    { offset: 0.42, frequency: 1175 },
-    { offset: 0.84, frequency: 880 },
-  ]) {
-    const at = startAt + note.offset;
-    const oscillator = context.createOscillator();
-    const volume = context.createGain();
-    oscillator.type = "triangle";
-    oscillator.frequency.setValueAtTime(note.frequency, at);
-    volume.gain.setValueAtTime(0.0001, at);
-    volume.gain.exponentialRampToValueAtTime(0.48, at + 0.015);
-    volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.32);
-    oscillator.connect(volume);
-    volume.connect(context.destination);
-    oscillator.start(at);
-    oscillator.stop(at + 0.34);
+  const startAt = context.currentTime + 0.01;
+  const duration = 1.35;
+  const oscillator = context.createOscillator();
+  const volume = context.createGain();
+  oscillator.type = "sawtooth";
+  oscillator.frequency.setValueAtTime(620, startAt);
+  for (let cycle = 0; cycle < 3; cycle++) {
+    const cycleStart = startAt + cycle * 0.42;
+    oscillator.frequency.setValueAtTime(620, cycleStart);
+    oscillator.frequency.linearRampToValueAtTime(1180, cycleStart + 0.21);
+    oscillator.frequency.linearRampToValueAtTime(620, cycleStart + 0.42);
   }
+  volume.gain.setValueAtTime(0.0001, startAt);
+  volume.gain.linearRampToValueAtTime(0.2, startAt + 0.04);
+  volume.gain.setValueAtTime(0.2, startAt + duration - 0.12);
+  volume.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  oscillator.connect(volume);
+  volume.connect(context.destination);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + duration);
 }
 
 interface OrderManagerContextType {
@@ -94,6 +95,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       return null;
     }
   }, []);
+  const queuedOrderKey = queuedNewOrders.map((order) => order.id).join(",");
 
   const playChime = useCallback(() => {
     const context = getAudioContext();
@@ -137,6 +139,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       void context.resume().then(() => {
         document.removeEventListener("pointerdown", unlock);
         document.removeEventListener("keydown", unlock);
+        if (soundEnabled && queuedOrderKey) playOrderChime(context);
       }).catch(() => { /* a later user gesture can unlock audio */ });
     };
     document.addEventListener("pointerdown", unlock);
@@ -145,22 +148,22 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       document.removeEventListener("pointerdown", unlock);
       document.removeEventListener("keydown", unlock);
     };
-  }, [getAudioContext]);
+  }, [getAudioContext, queuedOrderKey, soundEnabled]);
 
   useEffect(() => {
     stopSound();
-    if (!soundEnabled || queuedNewOrders.length === 0) return;
+    if (!soundEnabled || !queuedOrderKey) return;
     playChime();
-    soundLoopRef.current = window.setInterval(playChime, 3000);
+    soundLoopRef.current = window.setInterval(playChime, 2200);
     return stopSound;
-  }, [playChime, queuedNewOrders.length, soundEnabled, stopSound]);
+  }, [playChime, queuedOrderKey, soundEnabled, stopSound]);
 
   // Initial Sync & Polling
   const refreshOrders = useCallback(async () => {
     try {
       const { data, error: fetchErr } = await supabase.current
         .from("orders")
-        .select("id, order_number, customer_phone, customer_name, items, total, status, order_type, source, address, landmark, city, pincode, table_number, confirmed_at, amend_window_until, amended_at, amendment_count, original_items, cancel_reason, cancelled_by, cancelled_at, cancel_requested_at, created_at, updated_at, items_json, rider_id, rider_name, rider_phone, collected_amount, is_collected, scheduled_for, payment_status")
+        .select("id, order_number, customer_id, customer_phone, customer_name, items, total, status, order_type, source, address, landmark, city, pincode, table_number, confirmed_at, amend_window_until, amended_at, amendment_count, original_items, cancel_reason, cancelled_by, cancelled_at, cancel_requested_at, created_at, updated_at, items_json, rider_id, rider_name, rider_phone, collected_amount, is_collected, scheduled_for, payment_status")
         .order("created_at", { ascending: false })
         .limit(300);
 

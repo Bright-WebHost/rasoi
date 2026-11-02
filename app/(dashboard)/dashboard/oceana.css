@@ -398,13 +398,15 @@
 .oc .o.ch-takeaway{border-left:4px solid #E89B1C}
 .oc .o.ch-dine-in{border-left:4px solid #5B3FBF}
 .oc .tag.src{display:inline-flex;align-items:center;gap:4px}
-.oc .tag.src-whatsapp{background:#DDF5E4;color:#176B35}
-.oc .tag.src-online{background:#E8F2FF;color:#1A5FA8}
-.oc .tag.src-pos{background:#FFF2DB;color:#946000}
-.oc .tag.src-other{background:#F1F3F6;color:#56616D}
-.oc .o.source-whatsapp,.oc .mocard.source-whatsapp{background:#F3FFF6}
-.oc .o.source-online,.oc .mocard.source-online{background:#F6FAFF}
-.oc .o.source-pos,.oc .mocard.source-pos{background:#FFFBF1}
+.oc .tag.src-whatsapp{background:#16823C;color:#fff}
+.oc .tag.src-table{background:#5B3FBF;color:#fff}
+.oc .tag.src-pos{background:#C45100;color:#fff}
+.oc .o.source-whatsapp,.oc .mocard.source-whatsapp{background:#E8F7EC}
+.oc .o.source-table,.oc .mocard.source-table{background:#F6F2FF}
+.oc .o.source-pos,.oc .mocard.source-pos{background:#FFF0E1}
+.oc .mocard.ch-delivery{border-left:4px solid #1A5FA8}
+.oc .mocard.ch-takeaway{border-left:4px solid #E89B1C}
+.oc .mocard.ch-dine-in{border-left:4px solid #5B3FBF}
 .oc .motags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
 .oc .runclock{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;padding:3px 8px;border-radius:7px;background:#EEF1F4;color:#4A5663}
 .oc .runclock.warn{background:#FFF3E5;color:#9A6B00}

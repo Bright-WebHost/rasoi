@@ -347,7 +347,7 @@ export default function Home() {
   if (screen === "welcome") return <Welcome store={store} setOrderType={(type) => { setOrderType(type); setScreen("menu"); }} />;
 
   if (screen === "checkout") return <>
-    <Checkout activeOrderItems={activeOrderItems} orderType={orderType} setOrderType={setOrderType} canDeliver={!store || store.orderTypes.delivery} canTakeaway={!store || store.orderTypes.takeaway} table={table} setTable={setTable} tables={tables} selectedTableId={selectedTableId} setSelectedTableId={setSelectedTableId} partySize={partySize} setPartySize={setPartySize} isAsap={isAsap} setIsAsap={setIsAsap} cart={cart} subtotal={subtotal} deliveryFee={deliveryFee} waivedDeliveryFee={waivedDeliveryFee} total={total} blockReason={checkoutBlock} deliveryNote={store?.deliveryNote || ""} details={details} setDetails={setDetails} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setScreen("menu")} onPlace={placeOrder} menuItems={menuItems} quantityFor={quantityFor} onAddDrink={addToCart} />
+    <Checkout activeOrderItems={activeOrderItems} orderType={orderType} setOrderType={setOrderType} canDeliver={!store || store.orderTypes.delivery} canTakeaway={!store || store.orderTypes.takeaway} table={table} setTable={setTable} tables={tables} selectedTableId={selectedTableId} setSelectedTableId={setSelectedTableId} partySize={partySize} setPartySize={setPartySize} isAsap={isAsap} setIsAsap={setIsAsap} cart={cart} subtotal={subtotal} deliveryFee={deliveryFee} waivedDeliveryFee={waivedDeliveryFee} total={total} blockReason={checkoutBlock} deliveryNote={store?.deliveryNote || ""} details={details} setDetails={setDetails} isSubmitting={isSubmitting} submitError={submitError} onBack={() => setScreen("menu")} onPlace={placeOrder} menuItems={menuItems} quantityFor={quantityFor} onAddDrink={addToCart} onChangeQuantity={changeQuantity} />
   </>;
 
   if (screen === "table-order") return <TableOrderPage table={table} orderNumber={orderNumber} status={activeOrderStatus} items={activeOrderItems} total={activeOrderTotal} onAddMore={() => { setCart([]); if (activeOrderStatus === "closed") { setActiveOrderItems([]); setActiveOrderTotal(0); setOrderNumber(""); setIdempotencyKey(""); } setScreen("menu"); }} />;
@@ -960,7 +960,8 @@ function Checkout({
   onPlace,
   menuItems,
   quantityFor,
-  onAddDrink
+  onAddDrink,
+  onChangeQuantity
 }: {
   activeOrderItems?: any[];
   orderType: OrderType;
@@ -992,6 +993,7 @@ function Checkout({
   menuItems: MenuItem[];
   quantityFor: (id: string) => number;
   onAddDrink: (item: MenuItem) => void;
+  onChangeQuantity: (id: string, delta: number) => void;
 }) { 
   const { user, signOut } = useAuth();
   const reduceMotion = useReducedMotion();
@@ -1294,31 +1296,44 @@ function Checkout({
             <section aria-label="Drink add-ons" className="mb-5 overflow-hidden rounded-2xl border border-orange-100 bg-[#fffaf6] p-4 sm:p-5">
               <h3 className="mb-1 text-[12px] font-extrabold uppercase tracking-[0.16em] text-gray-500">Complete your meal</h3>
               <p className="mb-4 text-[12px] font-medium text-gray-600">Add a refreshing drink to your order</p>
-              <div className="-mx-4 overflow-x-auto px-4 pb-2 no-scrollbar sm:-mx-5 sm:px-5">
-                <div className="flex w-max gap-3">
+              <div className="divide-y divide-orange-100">
                 {drinkItems.map((item) => (
-                  <article key={item.id} className="w-[132px] shrink-0 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                    <div className="relative aspect-square overflow-hidden rounded-xl bg-orange-50">
-                      <img src={item.image} alt={item.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                  <article key={item.id} className="flex min-w-0 items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-bold text-gray-800">{item.name}</p>
+                      <p className="mt-0.5 text-[13px] font-extrabold text-gray-900">{money(item.price)}</p>
+                    </div>
+                    {quantityFor(item.id) > 0 ? (
+                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-orange-200 bg-white p-1">
+                        <button
+                          type="button"
+                          aria-label={`Remove one ${item.name}`}
+                          onClick={() => onChangeQuantity(item.id, -1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-700 transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        >
+                          <Minus size={16} strokeWidth={2.5} />
+                        </button>
+                        <span aria-live="polite" className="min-w-5 text-center text-sm font-bold text-gray-900">{quantityFor(item.id)}</span>
+                        <button
+                          type="button"
+                          aria-label={`Add one ${item.name}`}
+                          onClick={() => onAddDrink(item)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-700 transition hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        >
+                          <Plus size={16} strokeWidth={2.5} />
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        aria-label={`Add ${item.name} to your order`}
                         onClick={() => onAddDrink(item)}
-                        className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-emerald-600 shadow-md transition hover:scale-105 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        className="shrink-0 rounded-lg border border-orange-300 bg-white px-3 py-1.5 text-xs font-extrabold text-orange-800 transition hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                       >
-                        <Plus size={19} strokeWidth={2.8} />
+                        Add
                       </button>
-                      {quantityFor(item.id) > 0 && (
-                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-gray-900/80 px-2 py-1 text-[10px] font-bold text-white">
-                          Added · {quantityFor(item.id)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 line-clamp-2 min-h-10 text-[12px] font-bold leading-5 text-gray-800">{item.name}</p>
-                    <p className="mt-0.5 text-[13px] font-extrabold text-gray-900">{money(item.price)}</p>
+                    )}
                   </article>
                 ))}
-                </div>
               </div>
             </section>
           ) : null}

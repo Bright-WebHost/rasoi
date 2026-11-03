@@ -88,8 +88,16 @@ export default function PnlView() {
   const catSuggest = [...new Set(["Rent & Utilities", "Salaries & wages", "Packaging & delivery", "Marketing & equipment", ...expenses.map((e) => e.category)])];
 
   const exportCsv = () => {
-    const rows: Array<[string, number]> = [["Revenue", cur.revenue], ["COGS (ingredient cost)", -cur.cogs], ["Gross Profit", cur.grossProfit],
-      ...catRows.map(([c, a]) => ["Expense: " + c, -a] as [string, number]), ["Total Expenses", -cur.totalExpenses], ["Net Profit", cur.netProfit]];
+    const profitComplete = cur.excludedLines === 0;
+    const rows: Array<[string, number | string]> = [
+      ["Profit status", profitComplete ? "Complete" : `Incomplete — recipe costs missing for ${cur.excludedQty} sold items`],
+      ["Revenue", cur.revenue],
+      [profitComplete ? "COGS (ingredient cost)" : "COGS (recorded recipe costs only)", -cur.cogs],
+      ["Gross Profit", profitComplete ? cur.grossProfit : "Unavailable"],
+      ...catRows.map(([c, a]) => ["Expense: " + c, -a] as [string, number | string]),
+      ["Total Expenses", -cur.totalExpenses],
+      ["Net Profit", profitComplete ? cur.netProfit : "Unavailable"],
+    ];
     const csv = [["Line", "Amount"], ...rows].map((r) => r.map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
@@ -106,10 +114,15 @@ export default function PnlView() {
 
   const totalQty = cur.matchedQty + cur.excludedQty;
   const covPct = totalQty > 0 ? Math.round((cur.matchedQty / totalQty) * 100) : 0;
-  const row = (labelText: React.ReactNode, value: number, prevValue: number | undefined, cls = "", invert = false, extra: React.ReactNode = null) => (
+  const profitComplete = cur.excludedLines === 0;
+  const comparisonComplete = profitComplete && (prev?.excludedLines ?? 0) === 0;
+  const row = (labelText: React.ReactNode, value: number | null, prevValue: number | undefined, cls = "", invert = false, extra: React.ReactNode = null) => (
     <div className={`pnlrow ${cls}`}>
       <div className="pnlrow-label">{labelText}</div>
-      <div className="pnlrow-right"><div className="pnlrow-val">{value < 0 && cls.includes("final") ? "−" : ""}{rs(cls.includes("final") ? Math.abs(value) : value)}{extra}</div>{delta(value, prevValue, invert)}</div>
+      <div className="pnlrow-right">
+        <div className="pnlrow-val">{value === null ? "Unavailable" : <>{value < 0 && cls.includes("final") ? "−" : ""}{rs(cls.includes("final") ? Math.abs(value) : value)}{extra}</>}</div>
+        {value === null ? null : delta(value, prevValue, invert)}
+      </div>
     </div>
   );
 
@@ -126,15 +139,18 @@ export default function PnlView() {
       <div className="ov-card">
         <h4>Profit &amp; Loss Statement</h4>
         {cur.excludedLines ? (
-          <div className="pnlwarn">⚠ <b>Costs are understated — recipe coverage is incomplete.</b> Only {covPct}% of items sold this period ({cur.matchedQty} of {totalQty}) have a recorded recipe cost. The other {cur.excludedQty} item{cur.excludedQty === 1 ? "" : "s"} contribute ₹0 to COGS below, so Gross Profit and Net Profit are both <b>higher than they really are</b> until more recipes are built.{" "}
+          <div className="pnlwarn">⚠ <b>Profit cannot be calculated reliably — recipe coverage is incomplete.</b> Only {covPct}% of items sold this period ({cur.matchedQty} of {totalQty}) have a recorded recipe cost. COGS below includes only recorded recipe costs; Gross Profit and Net Profit are hidden until every sold item has a cost.{" "}
             <a href="#" style={{ color: "inherit", fontWeight: 800 }} onClick={(e) => { e.preventDefault(); router.push("/dashboard/stock"); }}>Go build recipes →</a></div>
         ) : null}
         <div className="pnlstmt">
           {row("Revenue", cur.revenue, prev?.revenue)}
-          {row(<>− Cost of Goods Sold{cur.excludedLines ? <span className="pnlflag">partial</span> : null}</>, cur.cogs, prev?.cogs, "sub", true)}
-          {row("Gross Profit", cur.grossProfit, prev?.grossProfit, "total", false, <span className="pnlmargin">{cur.revenue > 0 ? pct((cur.grossProfit / cur.revenue) * 100) + " margin" : ""}</span>)}
+          {row(<>− Cost of Goods Sold{cur.excludedLines ? <span className="pnlflag">partial</span> : null}</>, cur.cogs, comparisonComplete ? prev?.cogs : undefined, "sub", true)}
+          {row("Gross Profit", profitComplete ? cur.grossProfit : null, comparisonComplete ? prev?.grossProfit : undefined, "total", false,
+            profitComplete && cur.revenue > 0 ? <span className="pnlmargin">{pct((cur.grossProfit / cur.revenue) * 100)} margin</span> : null)}
           {row("− Operating Expenses", cur.totalExpenses, prev?.totalExpenses, "sub", true)}
-          {row(cur.netProfit >= 0 ? "Net Profit" : "Net Loss", cur.netProfit, prev?.netProfit, `final ${cur.netProfit >= 0 ? "profit" : "loss"}`)}
+          {row(profitComplete ? (cur.netProfit >= 0 ? "Net Profit" : "Net Loss") : "Net Profit (incomplete)",
+            profitComplete ? cur.netProfit : null, comparisonComplete ? prev?.netProfit : undefined,
+            profitComplete ? `final ${cur.netProfit >= 0 ? "profit" : "loss"}` : "total")}
         </div>
       </div>
       <div className="anacard" style={{ marginBottom: 14 }}>

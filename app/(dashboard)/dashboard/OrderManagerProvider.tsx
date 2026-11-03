@@ -441,7 +441,7 @@ export function OrderManagerProvider({ children, initialOrders = [], autoPrint =
       enableSound,
       soundEnabled
     }}>
-      <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" loop preload="auto" style={{ display: "none" }} />
+      <audio ref={audioRef} src="/alarm_clock.ogg" loop preload="auto" style={{ display: "none" }} />
       {children}
     </OrderManagerContext.Provider>
   );

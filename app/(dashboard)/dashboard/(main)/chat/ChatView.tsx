@@ -26,8 +26,11 @@ export default function ChatView() {
     setSessions((data || []) as Session[]);
   }, []);
   const loadMsgs = useCallback(async (p: string) => {
-    const { data } = await sb.current.from("messages").select("*").eq("phone", p).order("created_at").limit(200);
-    if (curRef.current === p) setMsgs((data || []) as Msg[]);
+    const { data } = await sb.current.from("messages").select("*").eq("phone", p)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(200);
+    if (curRef.current === p) setMsgs(((data || []) as Msg[]).reverse());
   }, []);
 
   useEffect(() => {

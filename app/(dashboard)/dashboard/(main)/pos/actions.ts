@@ -3,7 +3,6 @@
 import { authorize } from "@/lib/auth/staff";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyOrderCreatedWebhook } from "@/lib/server/notify";
 import { normalizeWhatsAppPhone } from "@/lib/phone/whatsapp";
 import { sendPosOrderBill } from "@/lib/orders/table-bill";
 
@@ -109,19 +108,6 @@ export async function createPosOrder(payload: PosOrderPayload) {
     const billResult = await sendPosOrderBill(data.id);
     if (!billResult.sent) {
       console.error("[createPosOrder] POS order was created but its bill was not sent:", billResult.error);
-    }
-
-    // Keep the existing delivery/takeaway order confirmation.
-    if (payload.order_type !== "dine-in" && payload.customer_phone && payload.customer_phone.replace(/\D/g, "").length >= 10) {
-      await notifyOrderCreatedWebhook({
-        order_number: data.order_number,
-        customer_phone: payload.customer_phone,
-        customer_name: payload.customer_name,
-        order_type: payload.order_type,
-        items: payload.items_json.map((i) => ({ item_name: i.item_name, quantity: i.quantity, unit_price: i.unit_price })),
-        total: payload.total,
-        prep_time: 20,
-      });
     }
 
     return {

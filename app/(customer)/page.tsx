@@ -998,6 +998,37 @@ function Checkout({
   const { user, signOut } = useAuth();
   const reduceMotion = useReducedMotion();
   const drinkItems = menuItems.filter((item) => /drink|beverage|juice|soda|shake|coffee|tea/i.test(item.category));
+  const showContactDetails = !activeOrderItems?.length;
+  const needsContactDetails = showContactDetails && (!details.name.trim() || !details.phone.trim());
+  const contactDetails = (
+    <div>
+      <h2 className="text-[17px] font-bold mb-1 text-gray-800">Contact Details <span className="text-red-600">*</span></h2>
+      {orderType === "dine-in" && <p className="mb-4 text-[13px] font-medium text-gray-600">Enter your name and WhatsApp number for your first table order. The final bill will be sent to this number.</p>}
+      {orderType !== "dine-in" && <p className="mb-4 text-[13px] font-medium text-gray-600">Your name and WhatsApp number are required.</p>}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="checkout-customer-name" className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Full name <span className="text-red-600">*</span></label>
+          <input id="checkout-customer-name" required autoComplete="name" className="checkout-input bg-gray-50 w-full" placeholder="Full name" value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} />
+        </div>
+        <div>
+          {user?.phone ? (
+            <>
+              <span id="checkout-customer-phone-label" className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">WhatsApp / mobile number <span className="text-red-600">*</span></span>
+              <div aria-labelledby="checkout-customer-phone-label" className="bg-gray-100 border border-gray-200 rounded-xl p-3 flex flex-col justify-center gap-1 opacity-80 cursor-not-allowed min-h-[48px]">
+                <span className="text-gray-900 font-semibold text-[15px] leading-tight">{details.phone || user.phone}</span>
+                <span className="text-[11px] text-green-700 font-semibold">🔒 Linked to WhatsApp</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <label htmlFor="checkout-customer-phone" className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">WhatsApp / mobile number <span className="text-red-600">*</span></label>
+              <input id="checkout-customer-phone" required type="tel" inputMode="tel" autoComplete="tel" className="checkout-input bg-gray-50 w-full" placeholder="WhatsApp / mobile number" value={details.phone} onChange={(e) => setDetails({ ...details, phone: e.target.value })} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const [addresses, setAddresses] = useState<import("@/lib/supabase/types").CustomerAddressRow[]>([]);
   const [fetchingAddresses, setFetchingAddresses] = useState(false);
@@ -1145,23 +1176,7 @@ function Checkout({
           ) : null}
 
           <div className="mb-8">
-            {(!activeOrderItems || activeOrderItems.length === 0) && (
-              <>
-                <h2 className="text-[17px] font-bold mb-4 text-gray-800">Contact Details</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <input className="checkout-input bg-gray-50" placeholder="Full name" value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} />
-                  {user ? (
-                    <div className="bg-gray-100 border border-gray-200 rounded-xl p-3 flex flex-col justify-center gap-1 opacity-80 cursor-not-allowed">
-                      <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wide">WhatsApp Number</span>
-                      <span className="text-gray-900 font-semibold text-[15px] leading-tight">{details.phone || "Not linked"}</span>
-                      <span className="text-[11px] text-green-700 font-semibold flex items-center gap-1 mt-0.5">🔒 Linked to WhatsApp</span>
-                    </div>
-                  ) : (
-                    <input className="checkout-input bg-gray-50" placeholder="WhatsApp Number" value={details.phone} onChange={(e) => setDetails({ ...details, phone: e.target.value })} />
-                  )}
-                </div>
-              </>
-            )}
+            {orderType !== "dine-in" && showContactDetails && contactDetails}
 
             {orderType === "delivery" && <>
               <h2 className="text-[17px] font-bold mt-8 mb-4 text-gray-800">Delivery Address</h2>
@@ -1364,6 +1379,12 @@ function Checkout({
             <div className="flex justify-between font-extrabold text-[18px] text-gray-900"><span>Grand Total</span><span>{money(total)}</span></div>
           </div>
 
+          {orderType === "dine-in" && showContactDetails && (
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+              {contactDetails}
+            </div>
+          )}
+
           {blockReason && (
             <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold">
               {blockReason}
@@ -1376,9 +1397,15 @@ function Checkout({
             </div>
           )}
 
+          {needsContactDetails && (
+            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-semibold text-amber-800" role="status">
+              Enter your full name and WhatsApp / mobile number above to place this order.
+            </p>
+          )}
+
           <button
             onClick={onPlace}
-            disabled={isSubmitting || Boolean(blockReason) || ((!activeOrderItems || activeOrderItems.length === 0) && (!details.name || !details.phone)) || (orderType === "delivery" && !details.address)}
+            disabled={isSubmitting || Boolean(blockReason) || needsContactDetails || (orderType === "delivery" && !details.address)}
             className="w-full bg-[#e23744] text-white font-bold text-[16px] py-[15px] rounded-[14px] mt-6 disabled:opacity-50 shadow-md shadow-red-500/20 active:scale-[0.98] transition flex items-center justify-center gap-2"
           >
             {isSubmitting ? (

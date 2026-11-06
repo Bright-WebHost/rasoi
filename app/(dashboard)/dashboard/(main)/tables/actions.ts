@@ -362,19 +362,18 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     const targetIsDineIn = targetOrder.order_type === 'dine-in' || Boolean(String(targetOrder.table_number || '').trim());
     if (!sourceIsDineIn || !targetIsDineIn) return { success: false, error: 'Only dine-in table orders can be merged.' };
     
-    let existingTargetItems = targetOrder.items_json || [];
-    let sourceItems = sourceOrder.items_json || [];
+    const existingTargetItems = targetOrder.items_json || [];
+    const sourceItems = sourceOrder.items_json || [];
     
     const currentMaxRound = existingTargetItems.reduce((max: number, item: any) => Math.max(max, item.round || 1), 0);
     const nextRound = currentMaxRound + 1;
     
     const mergedItems = [...existingTargetItems];
     for (const item of sourceItems) {
-      mergedItems.push({
-        ...item,
-        is_new_addition: true,
-        round: nextRound
-      });
+      const mergedItem = { ...item, round: nextRound };
+      delete mergedItem.is_new_addition;
+      delete mergedItem.old_quantity;
+      mergedItems.push(mergedItem);
     }
     
     const newTotal = (targetOrder.total || 0) + (sourceOrder.total || 0);
@@ -386,23 +385,13 @@ export async function mergeTables(sourceOrderId: string, targetOrderId: string, 
     }
     const itemsSummary = Array.from(summaryMap.entries()).map(([name, qty]) => `${qty}x ${name}`).join(', ');
     
-    let newStatus = targetOrder.status;
-    if (['ready_for_pickup', 'out_for_delivery', 'delivered'].includes(targetOrder.status)) {
-      newStatus = 'preparing';
-    }
-    
     // Update Target Order
     const targetUpdates: Record<string, any> = {
       items_json: mergedItems,
       items: itemsSummary,
       total: newTotal,
-      status: newStatus,
       updated_at: new Date().toISOString()
     };
-    if (targetOrder.status === 'delivered' && newStatus === 'preparing') {
-      targetUpdates.whatsapp_bill_sent_at = null;
-      targetUpdates.whatsapp_bill_error = null;
-    }
     await adminClient.from('orders').update(targetUpdates).eq('id', targetOrderId);
     
     // Mark Source Order as cancelled to remove from active

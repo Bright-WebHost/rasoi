@@ -24,7 +24,7 @@ type PosCustomer = { phone: string; name: string | null; total_orders: number | 
 export default function PosView() {
   const router = useRouter();
   const { menu } = useMenu(true);
-  const { autoPrint, refreshOrders } = useOrderManager();
+  const { autoPrint, refreshOrders, orders } = useOrderManager();
   const { toast } = useOc();
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
@@ -40,6 +40,12 @@ export default function PosView() {
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<{ edit?: string; append?: string; lockedTable?: string }>({});
   const tables = useTables().list || [];
+  const occupiedTables = useMemo(() => new Set(
+    orders
+      .filter((order) => ["new", "preparing", "ready_for_pickup"].includes(order.status))
+      .map((order) => String(order.table_number || "").trim())
+      .filter(Boolean),
+  ), [orders]);
 
   useEffect(() => {
     const digits = form.ph.replace(/\D/g, "");
@@ -132,6 +138,9 @@ export default function PosView() {
     if (!mode.append && phone.length < 10) return fieldError("ph", "Enter a valid WhatsApp number");
     if (type === "delivery" && !form.adr.trim()) return fieldError("adr", "Delivery needs an address");
     if (type === "dine-in" && !form.tbl.trim()) return fieldError("tbl", "Dine-in needs a table number");
+    if (type === "dine-in" && !mode.edit && !mode.append && occupiedTables.has(form.tbl.trim())) {
+      return fieldError("tbl", `Table ${form.tbl.trim()} is already occupied. Choose another table.`);
+    }
     setBusy(true);
     const items = cart.map((c) => ({ menu_item_id: c.item.id, item_name: c.name, quantity: c.qty, unit_price: c.price, variant_name: c.variant }));
     try {
@@ -335,10 +344,25 @@ export default function PosView() {
             </>
           ) : null}
           {type === "dine-in" && !mode.lockedTable ? (
-            <>
-              <input className={`f2${err === "tbl" ? " ferr" : ""}`} placeholder="Table number *" list="pos-tables" value={form.tbl} onChange={set("tbl")} />
-              <datalist id="pos-tables">{tables.map((t) => <option key={t.id} value={t.table_number} label={`${t.capacity} seats`} />)}</datalist>
-            </>
+            <select
+              className={`f2${err === "tbl" ? " ferr" : ""}`}
+              aria-label="Table number"
+              value={form.tbl}
+              onChange={(e) => {
+                setForm((current) => ({ ...current, tbl: e.target.value }));
+                if (err === "tbl") setErr(null);
+              }}
+            >
+              <option value="" disabled>Select a table *</option>
+              {tables.map((table) => {
+                const occupied = occupiedTables.has(String(table.table_number).trim());
+                return (
+                  <option key={table.id} value={table.table_number} disabled={occupied}>
+                    Table {table.table_number} · {table.capacity} seats{occupied ? " · Occupied" : ""}
+                  </option>
+                );
+              })}
+            </select>
           ) : null}
           <div className="ctot"><span>Total</span><span>{rs(total)}</span></div>
           <button className="cta" disabled={!cart.length || busy} onClick={() => void submit()}>{busy ? "Sending…" : cta + " 🚀"}</button>

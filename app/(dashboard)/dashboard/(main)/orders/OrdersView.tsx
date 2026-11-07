@@ -15,8 +15,7 @@ import { RANGE_CHIPS, ageOf, channelOf, fmtMins, inRange, ist, lineItemsOf, rs, 
 import { collectCash, markUnpaidOrderPaid } from "./actions";
 
 const READY: OrderStatus[] = ["ready_for_pickup", "out_for_delivery"];
-// Rasoi closes a dine-in table (and sends the final bill) on "delivered", so a
-// served round is "ready_for_pickup" instead.
+// A dine-in order remains active until it is served and closed as delivered.
 const DINE_ACTIVE: OrderStatus[] = ["new", "preparing", "ready_for_pickup"];
 type Col = { key: "preparing" | "READY" | "delivered"; label: string; cls: string; slide: string | null; next: string | null; color: string };
 const COLS: Col[] = [
@@ -53,14 +52,13 @@ function OrderTypeTag({ channel, tableNumber }: { channel: ReturnType<typeof cha
 }
 
 const isDine = (o: DashboardOrder) => channelOf(o) === "dine-in";
-const isDineServed = (o: DashboardOrder) => isDine(o) && o.status === "ready_for_pickup";
+const isDineServed = (o: DashboardOrder) => isDine(o) && o.status === "delivered";
 /** Rider tapped "Unpaid": delivered, but the customer still owes the shop. */
 const isUnpaid = (o: DashboardOrder) => o.order_type === "delivery" && o.status === "delivered" && o.payment_status === "unpaid";
 const canEditOrder = (o: DashboardOrder) => o.source === "pos" && ["new", "preparing"].includes(o.status);
 
 function MobileOrderProgress({ order }: { order: DashboardOrder }) {
-  const stage = isDineServed(order) ? 3
-    : order.status === "new" ? 0
+  const stage = order.status === "new" ? 0
     : order.status === "preparing" ? 1
       : READY.includes(order.status) ? 2
         : 3;
@@ -73,8 +71,8 @@ function MobileOrderProgress({ order }: { order: DashboardOrder }) {
     : stage === 1 ? "The kitchen is preparing this order"
       : stage === 2
         ? order.status === "out_for_delivery" ? "The rider is on the way" : isDine(order) ? "Ready to serve at the table" : "Waiting for customer pickup"
-        : isDineServed(order) ? "This round has been served at the table" : "This order has been fulfilled";
-  const steps = ["Received", "Preparing", "Ready", isDineServed(order) ? "Served" : "Done"];
+        : isDineServed(order) ? "This order has been served and the table is closed" : "This order has been fulfilled";
+  const steps = ["Received", "Preparing", "Ready", isDine(order) ? "Served" : "Done"];
 
   return (
     <section className={`mo-progress sts-${stage === 3 ? "delivered" : stage === 2 ? "ready" : stage === 1 ? "preparing" : "new"}`} aria-label={`Order status: ${title}`}>
@@ -304,7 +302,7 @@ export default function OrdersView() {
           {amended ? <span className="tag am">Amended ×{o.amendment_count}</span> : null}
           <AgeTag o={o} />
         </div>
-        {done ? <div className="money">✓ Served</div> : <button className="donebtn" onClick={() => void setStatus(o, "ready_for_pickup")}>✓ Mark done</button>}
+        {done ? <div className="money">✓ Served · table closed</div> : <button className="donebtn" onClick={() => void setStatus(o, "delivered")}>✓ Served &amp; close table</button>}
         <div className="mini">
           {canEditOrder(o) ? <button onClick={() => edit(o)}>Edit</button> : null}
           {!done && o.status !== "cancelled" && hasPerm("cancel_order") ? <button className="x" onClick={() => void setStatus(o, "cancelled", "staff_cancelled")}>Cancel</button> : null}
@@ -370,14 +368,16 @@ export default function OrdersView() {
       if (o.status === "preparing") return (
         <>
           {isDine(o)
-            ? <button className="mobtn go" onClick={async () => { if (await setStatus(o, "ready_for_pickup")) setMtab("delivered"); }}>✓ Mark done</button>
+            ? <button className="mobtn go" onClick={async () => { if (await setStatus(o, "delivered")) setMtab("delivered"); }}>✓ Served &amp; close table</button>
             : <button className="mobtn go" onClick={() => o.order_type === "delivery" ? setRiderFor({ order: o, advance: true }) : void setStatus(o, "ready_for_pickup")}>Ready / dispatch</button>}
           {canEditOrder(o) ? <button className="mobtn" onClick={() => edit(o)}>Edit</button> : null}
         </>
       );
       if (READY.includes(o.status)) return (
         <>
-          {!isDine(o) ? <button className="mobtn go" onClick={() => void setStatus(o, "delivered")}>Mark delivered</button> : null}
+          {isDine(o)
+            ? <button className="mobtn go" onClick={async () => { if (await setStatus(o, "delivered")) setMtab("delivered"); }}>✓ Served &amp; close table</button>
+            : <button className="mobtn go" onClick={() => void setStatus(o, "delivered")}>Mark delivered</button>}
           {!o.is_collected && !isDine(o) && hasPerm("collect_cash") ? <button className="mobtn" onClick={() => void cash(o)}>💵 {rs(o.total)}</button> : null}
           <button className="mobtn" onClick={() => void printOrderBill(o.id)}>Print</button>
         </>
@@ -469,7 +469,7 @@ export default function OrdersView() {
       <div className="board">
         <div className="col dinein">
           <div className="colbar"><span>🍽️ Dine-in</span><span className="cnt">{dine.length}</span></div>
-          {dine.length ? dine.map((o) => dineCard(o, o.status === "ready_for_pickup")) : <div className="none">No active rounds</div>}
+          {dine.length ? dine.map((o) => dineCard(o, false)) : <div className="none">No active rounds</div>}
         </div>
         {COLS.map((c) => {
           const list = live.filter((o) => !isDine(o) && (c.key === "READY" ? READY.includes(o.status) : o.status === c.key));

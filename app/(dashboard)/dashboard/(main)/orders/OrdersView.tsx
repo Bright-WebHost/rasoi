@@ -56,6 +56,45 @@ const isDine = (o: DashboardOrder) => channelOf(o) === "dine-in";
 /** Rider tapped "Unpaid": delivered, but the customer still owes the shop. */
 const isUnpaid = (o: DashboardOrder) => o.order_type === "delivery" && o.status === "delivered" && o.payment_status === "unpaid";
 const canEditOrder = (o: DashboardOrder) => o.source === "pos" && ["new", "preparing"].includes(o.status);
+
+function MobileOrderProgress({ order }: { order: DashboardOrder }) {
+  const stage = order.status === "new" ? 0
+    : order.status === "preparing" ? 1
+      : READY.includes(order.status) ? 2
+        : 3;
+  const title = stage === 0 ? "New order"
+    : stage === 1 ? "Being prepared"
+      : stage === 2
+        ? order.status === "out_for_delivery" ? "Out for delivery" : isDine(order) ? "Ready to serve" : "Ready for pickup"
+        : "Completed";
+  const detail = stage === 0 ? "Waiting for staff to accept"
+    : stage === 1 ? "The kitchen is preparing this order"
+      : stage === 2
+        ? order.status === "out_for_delivery" ? "The rider is on the way" : isDine(order) ? "Ready to serve at the table" : "Waiting for customer pickup"
+        : "This order has been fulfilled";
+  const steps = ["Received", "Preparing", "Ready", "Done"];
+
+  return (
+    <section className={`mo-progress sts-${stage === 3 ? "delivered" : stage === 2 ? "ready" : stage === 1 ? "preparing" : "new"}`} aria-label={`Order status: ${title}`}>
+      <div className="mo-progress-heading">
+        <div>
+          <span className="mo-progress-eyebrow">CURRENT STATUS · STEP {stage + 1} OF 4</span>
+          <strong>{title}</strong>
+          <span className="mo-progress-detail">{detail}</span>
+        </div>
+      </div>
+      <ol className="mo-progress-steps">
+        {steps.map((step, index) => (
+          <li key={step} className={index < stage ? "complete" : index === stage ? "current" : ""} aria-current={index === stage ? "step" : undefined}>
+            <span className="mo-progress-dot">{index < stage ? "✓" : index + 1}</span>
+            <span className="mo-progress-step-label">{step}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 const cancelReasonText = (o: DashboardOrder) => {
   const raw = String(o.cancel_reason || "");
   return raw.includes("|") ? raw.split("|").slice(1).join("|") : raw;
@@ -376,26 +415,20 @@ export default function OrdersView() {
           <div className="mostat"><span>Orders</span><b>{active.length}</b></div>
         </div>
         {unpaidBar}
-        <div className="mtabs">
-          {([["new", "New"], ["preparing", "Preparing"], ["ready", "Ready / Out"], ["delivered", "Done"]] as const).map(([k, l]) => (
-            <button key={k} className={`mtab${groups[k].length > 0 && k === "new" && tab !== k ? " urgent" : ""}`} aria-pressed={tab === k} onClick={() => setMtab(k)}>
-              {l} <span className={groups[k].length > 0 && k === "new" && tab !== k ? "mtab-cnt urgent" : "mtab-cnt"}>({groups[k].length})</span>
+        <div className="mstatus-grid" role="group" aria-label="Filter orders by status">
+          {(["new", "preparing", "ready", "delivered"] as const).map((k) => (
+            <button key={k} type="button" className={`mstatus-filter sts-${k}${tab === k ? " selected" : ""}${groups[k].length > 0 && k === "new" && tab !== k ? " urgent" : ""}`} aria-pressed={tab === k} onClick={() => setMtab(k)}>
+              <span className="mstatus-filter-label">{k === "new" ? "New orders" : k === "preparing" ? "In kitchen" : k === "ready" ? "Ready / out" : "Completed"}</span>
+              <strong className="mstatus-filter-count">{groups[k].length}</strong>
+              <span className="mstatus-filter-hint">{k === "new" ? "Needs action" : k === "preparing" ? "Being prepared" : k === "ready" ? "Ready for next step" : "Fulfilled orders"}</span>
             </button>
           ))}
         </div>
-        <div className="mobanner">
-          <span className={`mobanner-dot sts-${tab}`} />
-          <span className="mobanner-txt">
-            {tab === "new" ? "New Orders" : tab === "preparing" ? "Preparing" : tab === "ready" ? "Ready / Out" : "Done"}{" — "}{list.length} order{list.length !== 1 ? "s" : ""}
-          </span>
-        </div>
         <div className="molist">
           {list.length ? list.map((o) => (
-            <div key={o.id} className={`mocard ch-${channelOf(o)} ${sourceClassOf(o)} sts-${tab}`}>
+            <div key={o.id} className={`mocard ch-${channelOf(o)} ${sourceClassOf(o)} sts-${o.status === "delivered" ? "delivered" : READY.includes(o.status) ? "ready" : o.status}`}>
               <div className="morow"><b>{o.order_number}</b><span className="moage">{fmtMins(ageOf(o))}m ago</span></div>
-              <span className="mostatbadge">
-                {tab === "new" ? "🆕 New" : tab === "preparing" ? "⏳ Preparing" : tab === "ready" ? "✅ Ready / Out" : "✓ Done"}
-              </span>
+              <MobileOrderProgress order={o} />
               <div className="mosub">{isDine(o) ? "Table " + (o.table_number || "?") : o.customer_name || "Guest"}{o.customer_phone ? " · " + o.customer_phone : ""}</div>
               {o.address ? <div className="mosub">📍 {o.address}{o.landmark ? ", " + o.landmark : ""}</div> : null}
               <div className="motags"><OrderTypeTag channel={channelOf(o)} tableNumber={o.table_number} /><SourceTag order={o} /></div>

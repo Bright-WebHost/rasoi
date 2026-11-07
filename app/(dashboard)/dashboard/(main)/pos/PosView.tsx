@@ -1,6 +1,6 @@
 "use client";
 
-/* Oceana POS: sticky category rail, search, ⭐ Popular shelf, 8-per-category
+/* Oceana POS: sticky category rail, search, 8-per-category
    grid and the cart box. Also handles Rasoi's ?edit=<id>, ?append=<id>&table=
    and ?table= entry points from Orders and Tables. */
 import { useEffect, useMemo, useState } from "react";
@@ -15,6 +15,7 @@ import { createPosOrder, searchPosCustomers, updatePosOrder } from "./actions";
 import { useTables } from "../../oc-data";
 
 const PER_CAT = 8;
+const UNAVAILABLE_CATEGORY = "__unavailable__";
 type PType = "takeaway" | "delivery" | "dine-in";
 type Line = { key: string; item: MenuItem; name: string; variant: string | null; price: number; qty: number };
 type Form = { ph: string; nm: string; adr: string; pin: string; tbl: string };
@@ -23,7 +24,7 @@ type PosCustomer = { phone: string; name: string | null; total_orders: number | 
 export default function PosView() {
   const router = useRouter();
   const { menu } = useMenu(true);
-  const { orders, autoPrint, refreshOrders } = useOrderManager();
+  const { autoPrint, refreshOrders } = useOrderManager();
   const { toast } = useOc();
   const [cat, setCat] = useState("All");
   const [q, setQ] = useState("");
@@ -94,27 +95,15 @@ export default function PosView() {
     });
   }, []);
 
-  const cats = useMemo(() => [...new Set(menu.map((m) => m.category))], [menu]);
+  const unavailableItems = useMemo(() => menu.filter((m) => !m.available), [menu]);
+  const cats = useMemo(() => [...new Set(menu.filter((m) => m.available).map((m) => m.category))], [menu]);
+  const orderedMenu = useMemo(
+    () => [...menu].sort((a, b) => Number(b.available) - Number(a.available)),
+    [menu],
+  );
   const count = cart.reduce((s, c) => s + c.qty, 0);
   const total = cart.reduce((s, c) => s + c.price * c.qty, 0);
   const qtyOf = (id: string) => cart.filter((c) => c.item.id === id).reduce((s, c) => s + c.qty, 0);
-
-  /* Most-sold dishes over the last 30 days (falls back to all loaded orders). */
-  const popular = useMemo(() => {
-    const cutoff = Date.now() - 30 * 86400000;
-    const rank = (recentOnly: boolean) => {
-      const agg: Record<string, number> = {};
-      orders.filter((o) => o.status !== "cancelled" && (!recentOnly || new Date(o.created_at).getTime() >= cutoff)).forEach((o) => {
-        (Array.isArray(o.items_json) ? o.items_json : []).forEach((i) => {
-          if (i.menu_item_id) agg[i.menu_item_id] = (agg[i.menu_item_id] || 0) + Number(i.quantity || 0);
-        });
-      });
-      return Object.entries(agg).sort((a, b) => b[1] - a[1]);
-    };
-    let ranked = rank(true);
-    if (ranked.length < 6) ranked = rank(false);
-    return ranked.map(([id]) => menu.find((m) => m.id === id)).filter(Boolean).slice(0, 10) as MenuItem[];
-  }, [orders, menu]);
 
   const add = (m: MenuItem, variant: string | null = null) => {
     if (!m.available) { toast(m.item_name + " is marked unavailable"); return; }
@@ -205,9 +194,9 @@ export default function PosView() {
     const thr = m.low_stock_threshold ?? 5;
     const warn = m.track_stock ? (Number(m.stock_qty) <= 0 ? "out" : Number(m.stock_qty) <= thr ? "low" : "") : "";
     return (
-      <button key={m.id} className={`pitem ${m.available ? "" : "off"}`} onClick={() => tap(m)}>
+      <button key={m.id} className={`pitem ${m.available ? "" : "off"}`} disabled={!m.available} aria-label={`${m.item_name}${m.available ? "" : " - unavailable"}`} onClick={() => tap(m)}>
         {n ? <span className="qb">{n}</span> : null}
-        {warn ? <span className={`pstock ${warn}`}>{warn === "out" ? "Out" : m.stock_qty + " left"}</span> : null}
+        {!m.available ? <span className="pstock out">Unavailable</span> : warn ? <span className={`pstock ${warn}`}>{warn === "out" ? "Out" : m.stock_qty + " left"}</span> : null}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="pthumb" src={m.image_url || FALLBACK_IMG} alt="" loading="lazy"
           onError={(e) => { const i = e.currentTarget; i.onerror = null; i.src = FALLBACK_IMG; i.style.opacity = ".5"; }} />
@@ -219,18 +208,17 @@ export default function PosView() {
   const query = q.toLowerCase().trim();
   let body: React.ReactNode;
   if (query) {
-    const hits = menu.filter((m) => m.item_name.toLowerCase().includes(query) || String(m.item_number) === query || m.category.toLowerCase().includes(query));
+    const searchableItems = cat === UNAVAILABLE_CATEGORY ? unavailableItems : orderedMenu.filter((m) => m.available);
+    const hits = searchableItems.filter((m) => m.item_name.toLowerCase().includes(query) || String(m.item_number) === query || m.category.toLowerCase().includes(query));
+    const visibleHits = hits.slice(0, 60);
     body = hits.length ? (
-      <div className="csec"><h4>{hits.length} result{hits.length > 1 ? "s" : ""}</h4><div className="pgrid">{hits.slice(0, 60).map(pcard)}</div></div>
+      <div className="csec"><h4>{hits.length} {cat === UNAVAILABLE_CATEGORY ? "unavailable " : ""}result{hits.length === 1 ? "" : "s"}</h4><div className="pgrid">{visibleHits.map(pcard)}</div></div>
     ) : <div className="none">Nothing matched that</div>;
   } else if (cat === "All") {
     body = (
       <>
-        {popular.length ? (
-          <div className="csec popular"><h4>⭐ Popular — fastest to tap for a walk-in</h4><div className="pgrid">{popular.map(pcard)}</div></div>
-        ) : null}
         {cats.map((c) => {
-          const rows = menu.filter((m) => m.category === c);
+          const rows = orderedMenu.filter((m) => m.category === c && m.available);
           return (
             <div key={c} className="csec">
               <h4>{c}{rows.length > PER_CAT ? <button onClick={() => { setCat(c); window.scrollTo({ top: 0, behavior: "smooth" }); }}>All {rows.length} →</button> : null}</h4>
@@ -240,10 +228,17 @@ export default function PosView() {
         })}
       </>
     );
-  } else {
-    const rows = menu.filter((m) => m.category === cat);
+  } else if (cat === UNAVAILABLE_CATEGORY) {
     body = (
-      <div className="csec"><h4>{cat} · {rows.length} items<button onClick={() => setCat("All")}>← All categories</button></h4><div className="pgrid">{rows.map(pcard)}</div></div>
+      <div className="csec">
+        <h4>Unavailable · {unavailableItems.length}</h4>
+        {unavailableItems.length ? <div className="pgrid">{unavailableItems.map(pcard)}</div> : <div className="none">No unavailable items</div>}
+      </div>
+    );
+  } else {
+    const rows = orderedMenu.filter((m) => m.category === cat && m.available);
+    body = (
+      <div className="csec"><h4>{cat} · {rows.length} available<button onClick={() => setCat("All")}>← All categories</button></h4>{rows.length ? <div className="pgrid">{rows.map(pcard)}</div> : <div className="none">No available items in this category</div>}</div>
     );
   }
 
@@ -253,12 +248,15 @@ export default function PosView() {
   return (
     <div className="pos">
       <div className="catrail">
-        <button aria-pressed={cat === "All"} onClick={() => { setCat("All"); setQ(""); }}><span className="cn">All dishes</span><span className="ct">{menu.length}</span></button>
+        <button aria-pressed={cat === "All"} onClick={() => { setCat("All"); setQ(""); }}><span className="cn">All dishes</span><span className="ct">{menu.filter((m) => m.available).length}</span></button>
         {cats.map((c) => (
           <button key={c} aria-pressed={cat === c} onClick={() => { setCat(c); setQ(""); }}>
-            <span className="cn">{c}</span><span className="ct">{menu.filter((m) => m.category === c).length}</span>
+            <span className="cn">{c}</span><span className="ct">{menu.filter((m) => m.category === c && m.available).length}</span>
           </button>
         ))}
+        <button aria-pressed={cat === UNAVAILABLE_CATEGORY} onClick={() => { setCat(UNAVAILABLE_CATEGORY); setQ(""); }}>
+          <span className="cn">Unavailable</span><span className="ct">{unavailableItems.length}</span>
+        </button>
       </div>
 
       <div className="panel">

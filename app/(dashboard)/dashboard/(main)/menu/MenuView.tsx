@@ -276,9 +276,12 @@ export default function MenuView() {
   const { settings } = useOc();
   const actions = useStockActions();
   const [q, setQ] = useState("");
+  const [unavailableOnly, setUnavailableOnly] = useState(false);
   const [modal, setModal] = useState<{ item: MenuItem | null } | null>(null);
   const query = q.trim().toLowerCase();
-  const rows = query ? menu.filter((m) => m.item_name.toLowerCase().includes(query) || m.category.toLowerCase().includes(query) || String(m.item_number) === query) : menu;
+  const matchesQuery = (m: MenuItem) => !query || m.item_name.toLowerCase().includes(query) || m.category.toLowerCase().includes(query) || String(m.item_number) === query;
+  const rows = menu.filter((m) => !unavailableOnly && m.available && matchesQuery(m));
+  const unavailableRows = menu.filter((m) => unavailableOnly && !m.available && matchesQuery(m));
   const cats = [...new Set(rows.map((m) => m.category))];
   const low = menu.filter((m) => m.track_stock && Number(m.stock_qty) <= thresholdOf(m, settings)).length;
   return (
@@ -297,7 +300,24 @@ export default function MenuView() {
             <div className="mgrid">{items.map((m) => <MenuCard key={m.id} m={m} actions={actions} onEdit={(it) => setModal({ item: it })} />)}</div>
           </div>
         );
-      }) : <div className="none">No items matched</div>}
+      }) : null}
+      <button
+        type="button"
+        className="btn sm"
+        aria-pressed={unavailableOnly}
+        style={{ display: "flex", width: "100%", justifyContent: "space-between", marginTop: 16, borderColor: unavailableOnly ? "var(--red)" : undefined, color: unavailableOnly ? "var(--red)" : undefined }}
+        onClick={() => setUnavailableOnly((current) => !current)}
+      >
+        <span>Unavailable</span>
+        <span>{menu.filter((m) => !m.available).length}</span>
+      </button>
+      {unavailableOnly && unavailableRows.length ? (
+        <div className="mcat">
+          <h4>Unavailable <span className="mcatcount">{unavailableRows.length}</span></h4>
+          <div className="mgrid">{unavailableRows.map((m) => <MenuCard key={m.id} m={m} actions={actions} onEdit={(it) => setModal({ item: it })} />)}</div>
+        </div>
+      ) : null}
+      {!cats.length && !unavailableRows.length ? <div className="none">{unavailableOnly ? "No unavailable items matched" : "No items matched"}</div> : null}
       {modal ? <MenuModal item={modal.item} onClose={() => setModal(null)} /> : null}
       {actions.modal}
     </div>

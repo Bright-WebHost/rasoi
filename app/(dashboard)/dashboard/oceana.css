@@ -112,6 +112,9 @@
 .oc .mini button{border:1px solid var(--line);background:#fff;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600}
 .oc .mini button.x{color:var(--red2)}
 .oc .none{padding:26px 6px;text-align:center;color:#9AA6B4;font-size:12.5px;background:#fff;border:1px dashed var(--line);border-radius:12px}
+.oc .route-loading{min-height:calc(100vh - 150px);display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:13px;font-weight:700}
+.oc .route-loading-spinner{width:20px;height:20px;border:2px solid #DCE2E9;border-top-color:var(--red);border-radius:50%;animation:route-spin .7s linear infinite}
+@keyframes route-spin{to{transform:rotate(360deg)}}
 .oc .drawer{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .oc .drawer>button{width:100%;padding:12px 14px;display:flex;justify-content:space-between;font-weight:700;color:var(--muted)}
 .oc .drawer .body{border-top:1px solid var(--line);padding:10px}

@@ -198,7 +198,17 @@ function Frame({ fontClass, toasts, children }: { fontClass: string; toasts: Arr
           <Brand />
           <nav>
             {nav.map(([href, label]) => (
-              <Link key={href} href={href} onClick={() => setNavOpen(false)} aria-current={current?.[0] === href ? "true" : "false"}>{label}</Link>
+              <Link
+                key={href}
+                href={href}
+                prefetch={false}
+                onPointerEnter={() => router.prefetch(href)}
+                onFocus={() => router.prefetch(href)}
+                onClick={() => setNavOpen(false)}
+                aria-current={current?.[0] === href ? "true" : "false"}
+              >
+                {label}
+              </Link>
             ))}
           </nav>
           <div className="side-foot">

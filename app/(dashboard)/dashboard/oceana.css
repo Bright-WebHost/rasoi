@@ -580,9 +580,43 @@
 .oc .mobtn{flex:1;min-width:100px;padding:11px;border-radius:11px;border:1px solid var(--line);background:#fff;font-weight:800;font-size:12.5px;color:var(--ink)}
 .oc .mobtn.go{background:#3AB757;border-color:#3AB757;color:#fff}
 .oc .mobtn.bad{background:#fff;border-color:#F5C2C6;color:var(--red2)}
+/* ── Mobile: tab count labels + urgent new-order highlight ───────── */
+.oc .mtab-cnt{font-weight:700}
+.oc .mtab-cnt.urgent{color:#E74C3C}
+.oc .mtab.urgent:not([aria-pressed="true"]){border-color:#E74C3C}
+/* ── Mobile: status-based left border on each order card ─────────── */
+.oc .mocard.sts-new{border-left:4px solid #2563EB}
+.oc .mocard.sts-preparing{border-left:4px solid #F59E0B}
+.oc .mocard.sts-ready{border-left:4px solid #22C55E}
+.oc .mocard.sts-done{border-left:4px solid #9CA3AF}
+/* ── Mobile: status badge inside each card ───────────────────────── */
+.oc .mostatbadge{display:inline-flex;align-items:center;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;margin:3px 0 7px}
+.oc .mocard.sts-new .mostatbadge{background:#EFF6FF;color:#1D4ED8}
+.oc .mocard.sts-preparing .mostatbadge{background:#FFFBEB;color:#B45309}
+.oc .mocard.sts-ready .mostatbadge{background:#F0FDF4;color:#15803D}
+.oc .mocard.sts-done .mostatbadge{background:#F3F4F6;color:#6B7280}
+/* ── Mobile: sticky "Currently viewing" banner ───────────────────── */
+.oc .mobanner{display:flex;align-items:center;gap:8px;padding:8px 0 10px;margin-bottom:4px;position:sticky;top:0;background:#F6F7F9;z-index:5;border-bottom:1px solid var(--line)}
+.oc .mobanner-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.oc .mobanner-dot.sts-new{background:#2563EB}
+.oc .mobanner-dot.sts-preparing{background:#F59E0B}
+.oc .mobanner-dot.sts-ready{background:#22C55E}
+.oc .mobanner-dot.sts-done{background:#9CA3AF}
+.oc .mobanner-txt{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+/* ── Mobile: shorter age-only timestamp ──────────────────────────── */
+.oc .moage{font-size:11.5px;color:var(--muted);font-weight:700}
 .oc #shiftgate{position:fixed;inset:0;z-index:300;background:linear-gradient(180deg,#19121F,#2A0E14);display:grid;place-items:center;padding:28px;text-align:center}
 .oc #shiftgate .tile{width:56px;height:56px;border-radius:16px;background:var(--red);color:#fff;display:grid;place-items:center;font-family:var(--font-fraunces),Georgia,serif;font-size:28px;font-weight:800;margin:0 auto 16px}
 .oc #shiftgate h1{font-family:var(--font-fraunces),Georgia,serif;font-size:26px;margin:0 0 8px;color:#fff}
 .oc #shiftgate p{color:#D8C6CE;font-size:13.5px;line-height:1.6;margin:0 0 22px;max-width:320px}
 .oc #shiftgate .btn{background:var(--red);box-shadow:0 8px 24px rgba(226,55,68,.4);max-width:320px}
 .oc #shiftgate .sgskip{background:transparent;border:1px solid rgba(255,255,255,.22);color:#D8C6CE;margin-top:10px;max-width:320px}
+.oc .mofilter-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.oc .mofilter-label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.oc .mofilter-wrap{position:relative}
+.oc .mofilter-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 12px 7px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.oc .mofilter-drop{position:absolute;top:calc(100% + 6px);right:0;min-width:160px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.13);z-index:30;overflow:hidden}
+.oc .mofilter-opt{display:flex;align-items:center;justify-content:space-between;width:100%;padding:11px 16px;font-size:13px;font-weight:600;color:var(--ink);background:none;border:none;cursor:pointer;text-align:left}
+.oc .mofilter-opt:not(:last-child){border-bottom:1px solid var(--line)}
+.oc .mofilter-opt.active{color:#2563EB;background:#EFF6FF;font-weight:700}
+.oc .mofilter-opt.active svg path{stroke:#2563EB}

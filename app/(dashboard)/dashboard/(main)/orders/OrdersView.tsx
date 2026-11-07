@@ -106,6 +106,7 @@ export default function OrdersView() {
   const [restoreFor, setRestoreFor] = useState<DashboardOrder | null>(null);
   const [declineFor, setDeclineFor] = useState<DashboardOrder | null>(null);
   const [mtab, setMtab] = useState<"" | "new" | "preparing" | "ready" | "delivered">("");
+  const [filterOpen, setFilterOpen] = useState(false);
   useTick(20000);
 
   const setStatus = async (o: DashboardOrder, next: OrderStatus, reason?: string, rider?: Rider) => {
@@ -342,8 +343,34 @@ export default function OrdersView() {
       );
       return <button className="mobtn" onClick={() => void printOrderBill(o.id)}>Print</button>;
     };
+    const currentRangeLabel = RANGE_CHIPS.find(([k]) => k === range.range)?.[1] ?? "Today";
     return (
       <div>
+        <div className="mofilter-row">
+          <span className="mofilter-label">Summary</span>
+          <div className="mofilter-wrap">
+            <button className="mofilter-btn" onClick={() => setFilterOpen(v => !v)} aria-expanded={filterOpen}>
+              {currentRangeLabel}
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" style={{transition:"transform .15s",transform:filterOpen?"rotate(180deg)":"none"}}>
+                <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {filterOpen && (
+              <div className="mofilter-drop">
+                {RANGE_CHIPS.map(([k, l]) => (
+                  <button key={k} className={`mofilter-opt${range.range === k ? " active" : ""}`} onClick={() => { setRange({ ...range, range: k }); setFilterOpen(false); }}>
+                    <span>{l}</span>
+                    {range.range === k && (
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                        <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         <div className="movrow">
           <div className="mostat rev"><span>Revenue</span><b>{rs(rev)}</b></div>
           <div className="mostat"><span>Orders</span><b>{active.length}</b></div>
@@ -351,15 +378,24 @@ export default function OrdersView() {
         {unpaidBar}
         <div className="mtabs">
           {([["new", "New"], ["preparing", "Preparing"], ["ready", "Ready / Out"], ["delivered", "Done"]] as const).map(([k, l]) => (
-            <button key={k} className="mtab" aria-pressed={tab === k} onClick={() => setMtab(k)}>
-              {l}{groups[k].length ? ` (${groups[k].length})` : ""}
+            <button key={k} className={`mtab${groups[k].length > 0 && k === "new" && tab !== k ? " urgent" : ""}`} aria-pressed={tab === k} onClick={() => setMtab(k)}>
+              {l} <span className={groups[k].length > 0 && k === "new" && tab !== k ? "mtab-cnt urgent" : "mtab-cnt"}>({groups[k].length})</span>
             </button>
           ))}
         </div>
+        <div className="mobanner">
+          <span className={`mobanner-dot sts-${tab}`} />
+          <span className="mobanner-txt">
+            {tab === "new" ? "New Orders" : tab === "preparing" ? "Preparing" : tab === "ready" ? "Ready / Out" : "Done"}{" — "}{list.length} order{list.length !== 1 ? "s" : ""}
+          </span>
+        </div>
         <div className="molist">
           {list.length ? list.map((o) => (
-            <div key={o.id} className={`mocard ch-${channelOf(o)} ${sourceClassOf(o)}`}>
-              <div className="morow"><b>{o.order_number}</b><span>{ist(o.created_at)} · {fmtMins(ageOf(o))}</span></div>
+            <div key={o.id} className={`mocard ch-${channelOf(o)} ${sourceClassOf(o)} sts-${tab}`}>
+              <div className="morow"><b>{o.order_number}</b><span className="moage">{fmtMins(ageOf(o))}m ago</span></div>
+              <span className="mostatbadge">
+                {tab === "new" ? "🆕 New" : tab === "preparing" ? "⏳ Preparing" : tab === "ready" ? "✅ Ready / Out" : "✓ Done"}
+              </span>
               <div className="mosub">{isDine(o) ? "Table " + (o.table_number || "?") : o.customer_name || "Guest"}{o.customer_phone ? " · " + o.customer_phone : ""}</div>
               {o.address ? <div className="mosub">📍 {o.address}{o.landmark ? ", " + o.landmark : ""}</div> : null}
               <div className="motags"><OrderTypeTag channel={channelOf(o)} tableNumber={o.table_number} /><SourceTag order={o} /></div>

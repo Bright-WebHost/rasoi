@@ -8,6 +8,8 @@ import { db } from "../../oc-data";
 import { importContacts, setContactBlocked } from "./actions";
 
 type Customer = { phone: string; name: string | null; total_orders: number | null; last_order_date: string | null; opted_out: boolean | null; is_blocked: boolean | null };
+type ContactFilter = "all" | "recent_30" | "inactive_30_59" | "inactive_60_plus" | "repeat" | "one_time" | "opted_out";
+type ContactSort = "last_newest" | "last_oldest" | "orders_desc" | "orders_asc" | "name_asc" | "name_desc";
 export const PICK_KEY = "rasoi_blast_selection";
 export const readPick = () => { try { return new Set<string>(JSON.parse(sessionStorage.getItem(PICK_KEY) || "[]")); } catch { return new Set<string>(); } };
 const savePick = (s: Set<string>) => sessionStorage.setItem(PICK_KEY, JSON.stringify([...s]));
@@ -24,7 +26,10 @@ export default function ContactsView() {
   const router = useRouter();
   const { toast } = useOc();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [referenceTime, setReferenceTime] = useState(0);
   const [q, setQ] = useState("");
+  const [contactFilter, setContactFilter] = useState<ContactFilter>("all");
+  const [contactSort, setContactSort] = useState<ContactSort>("last_newest");
   const [pick, setPick] = useState<Set<string>>(() => (typeof window === "undefined" ? new Set() : readPick()));
   const [paste, setPaste] = useState("");
   const [result, setResult] = useState<React.ReactNode>(null);
@@ -39,6 +44,7 @@ export default function ContactsView() {
       return;
     }
     setCustomers((data || []) as Customer[]);
+    setReferenceTime(Date.now());
   }, [toast]);
   useEffect(() => { void load(); }, [load]);
   const update = (s: Set<string>) => { setPick(s); savePick(s); };
@@ -80,14 +86,37 @@ export default function ContactsView() {
   const readFile = (f?: File) => { if (!f) return; const rd = new FileReader(); rd.onload = () => void doImport(String(rd.result)); rd.readAsText(f); };
 
   const query = q.trim().toLowerCase();
-  const rows = customers.filter((c) => !query || String(c.phone).includes(query) || String(c.name || "").toLowerCase().includes(query));
+  const rows = customers.filter((customer) => {
+    if (query && !String(customer.phone).includes(query) && !String(customer.name || "").toLowerCase().includes(query)) return false;
+    const orderCount = Number(customer.total_orders || 0);
+    const lastOrderTime = customer.last_order_date ? new Date(`${customer.last_order_date}T00:00:00`).getTime() : Number.NaN;
+    const ageDays = referenceTime && Number.isFinite(lastOrderTime)
+      ? Math.floor((new Date(new Date(referenceTime).toDateString()).getTime() - lastOrderTime) / 86_400_000)
+      : null;
+    if (contactFilter === "recent_30" && (ageDays == null || ageDays < 0 || ageDays >= 30)) return false;
+    if (contactFilter === "inactive_30_59" && (ageDays == null || ageDays < 30 || ageDays >= 60)) return false;
+    if (contactFilter === "inactive_60_plus" && (ageDays == null || ageDays < 60)) return false;
+    if (contactFilter === "repeat" && orderCount < 2) return false;
+    if (contactFilter === "one_time" && orderCount !== 1) return false;
+    if (contactFilter === "opted_out" && customer.opted_out !== true) return false;
+    return true;
+  }).sort((a, b) => {
+    if (contactSort === "orders_desc") return Number(b.total_orders || 0) - Number(a.total_orders || 0);
+    if (contactSort === "orders_asc") return Number(a.total_orders || 0) - Number(b.total_orders || 0);
+    if (contactSort === "name_asc") return String(a.name || "").localeCompare(String(b.name || ""));
+    if (contactSort === "name_desc") return String(b.name || "").localeCompare(String(a.name || ""));
+    const aDate = a.last_order_date ? new Date(a.last_order_date).getTime() : 0;
+    const bDate = b.last_order_date ? new Date(b.last_order_date).getTime() : 0;
+    return contactSort === "last_newest" ? bDate - aDate : aDate - bDate;
+  });
   const eligible = rows.filter((c) => !c.is_blocked && c.opted_out === false);
   return (
     <div>
       <div className="stats">
         <div className="stat"><span>Saved Contacts</span><b>{customers.length}</b></div>
+        <div className="stat b"><span>Matching Filter</span><b>{rows.length}</b></div>
         <div className="stat r"><span>Selected</span><b>{pick.size}</b></div>
-        <div className="stat"><span>WhatsApp Blocked</span><b>{customers.filter((c) => c.is_blocked).length}</b></div>
+        <div className="stat o"><span>Opted Out</span><b>{customers.filter((c) => c.opted_out === true).length}</b></div>
       </div>
       <div className={`drop${drag ? " on" : ""}`}
         onDragEnter={(e) => { e.preventDefault(); setDrag(true); }} onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -105,6 +134,29 @@ export default function ContactsView() {
 
       <div className="pickbar" style={{ marginTop: 22 }}>
         <input className="f grow" placeholder="Search name or number" style={{ margin: 0 }} value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="contact-filter-control">
+          <span className="sr-only">Filter contacts</span>
+          <select className="f2" aria-label="Filter contacts" value={contactFilter} onChange={(e) => setContactFilter(e.target.value as ContactFilter)}>
+            <option value="all">All contacts</option>
+            <option value="recent_30">Recently ordered (30 days)</option>
+            <option value="inactive_30_59">Inactive 1 month+ (30–59 days)</option>
+            <option value="inactive_60_plus">Inactive 2 months+ (60+ days)</option>
+            <option value="repeat">Repeat customers</option>
+            <option value="one_time">One-time customers</option>
+            <option value="opted_out">Opted out</option>
+          </select>
+        </label>
+        <label className="contact-filter-control">
+          <span className="sr-only">Sort contacts</span>
+          <select className="f2" aria-label="Sort contacts" value={contactSort} onChange={(e) => setContactSort(e.target.value as ContactSort)}>
+            <option value="last_newest">Last order: newest first</option>
+            <option value="last_oldest">Last order: oldest first</option>
+            <option value="orders_desc">Total orders: high to low</option>
+            <option value="orders_asc">Total orders: low to high</option>
+            <option value="name_asc">Name: A → Z</option>
+            <option value="name_desc">Name: Z → A</option>
+          </select>
+        </label>
         <button className="btn sm ghost" onClick={() => { const n = new Set(pick); eligible.forEach((c) => n.add(c.phone)); update(n); }}>Select all shown ({eligible.length})</button>
         <button className="btn sm ghost" onClick={() => update(new Set())}>Clear</button>
         {pick.size ? <span className="selinfo">{pick.size} selected</span> : null}

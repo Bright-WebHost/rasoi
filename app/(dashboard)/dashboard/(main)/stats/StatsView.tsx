@@ -2,15 +2,23 @@
 
 /* Oceana Analytics: overview pills, order-type donut, top items, sales by day,
    hourly heatmap, cancelled orders, channels, riders and the shift-close report. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DashboardOrder } from "@/lib/orders/queries";
 import { useOrderManager } from "../../OrderManagerProvider";
 import { useOc } from "../../DashShell";
 import { channelOf, dayKeyIST, inRange, ist, rs, useIsMobile } from "../../oc-utils";
 import { RangeChips } from "../stock/StockView";
 import { useRiders } from "../../oc-data";
+import { fetchCustomerLoyaltyStats } from "./actions";
 
 type RiderRow = { id: string; name: string };
+type LoyaltyCustomer = { phone: string; name: string; orders: number; totalSpend: number };
+type LoyaltyStats = {
+  averageDaysBetweenVisits: number | null;
+  repeatCustomersTracked: number;
+  ordersAnalyzed: number;
+  topCustomers: LoyaltyCustomer[];
+};
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 const cancelReason = (o: DashboardOrder) => { const r = String(o.cancel_reason || ""); return (r.includes("|") ? r.split("|").slice(1).join("|") : r) || "No reason provided"; };
 const itemsOf = (o: DashboardOrder) => (Array.isArray(o.items_json) ? o.items_json : []);
@@ -114,6 +122,29 @@ export default function StatsView() {
   const mobile = useIsMobile();
   const riders: RiderRow[] = useRiders().list || [];
   const [shiftOpen, setShiftOpen] = useState(false);
+  const [loyaltyStats, setLoyaltyStats] = useState<LoyaltyStats | null>(null);
+  const [loyaltyError, setLoyaltyError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void fetchCustomerLoyaltyStats().then((result) => {
+      if (!active) return;
+      if (!result.success) {
+        setLoyaltyError(result.error);
+        return;
+      }
+      setLoyaltyStats({
+        averageDaysBetweenVisits: result.averageDaysBetweenVisits,
+        repeatCustomersTracked: result.repeatCustomersTracked,
+        ordersAnalyzed: result.ordersAnalyzed,
+        topCustomers: result.topCustomers,
+      });
+    }).catch((error: unknown) => {
+      console.error("Could not load customer loyalty metrics:", error);
+      if (active) setLoyaltyError("Could not load customer loyalty metrics.");
+    });
+    return () => { active = false; };
+  }, []);
 
   const rows = orders.filter((o) => inRange(o, range));
   const live = rows.filter((o) => o.status !== "cancelled");
@@ -130,6 +161,45 @@ export default function StatsView() {
     const pend = rr.filter((o) => !o.is_collected && o.status !== "cancelled").reduce((s, o) => s + Number(o.total), 0);
     return { r, n: rr.length, cash, pend };
   });
+  const ordersByCustomer = new Map<string, DashboardOrder[]>();
+  live.forEach((order) => {
+    const phone = String(order.customer_phone || "").replace(/\D/g, "");
+    if (!phone) return;
+    const customerOrders = ordersByCustomer.get(phone) || [];
+    customerOrders.push(order);
+    ordersByCustomer.set(phone, customerOrders);
+  });
+  const repeatPhones = new Set([...ordersByCustomer].filter(([, customerOrders]) => customerOrders.length > 1).map(([phone]) => phone));
+  const customerCount = ordersByCustomer.size;
+  const repeatCustomerCount = repeatPhones.size;
+  const repeatRate = customerCount ? Math.round((repeatCustomerCount / customerCount) * 100) : 0;
+  const isRepeatOrder = (order: DashboardOrder) => {
+    const phone = String(order.customer_phone || "").replace(/\D/g, "");
+    return Boolean(phone && repeatPhones.has(phone));
+  };
+  const newCustomerOrders = live.filter((order) => {
+    const phone = String(order.customer_phone || "").replace(/\D/g, "");
+    return phone && ordersByCustomer.get(phone)?.length === 1;
+  });
+  const returningCustomerOrders = live.filter(isRepeatOrder);
+  const newAverageOrder = newCustomerOrders.length
+    ? newCustomerOrders.reduce((sum, order) => sum + Number(order.total), 0) / newCustomerOrders.length
+    : 0;
+  const returningAverageOrder = returningCustomerOrders.length
+    ? returningCustomerOrders.reduce((sum, order) => sum + Number(order.total), 0) / returningCustomerOrders.length
+    : 0;
+  const repeatByChannel = [
+    { key: "pos", label: "Counter (POS)", color: "#2F6FE0" },
+    { key: "pwa", label: "Menu link", color: "#17C3B2" },
+    { key: "whatsapp", label: "WhatsApp chat", color: "#FFA43D" },
+  ].map((channel) => {
+    const channelOrders = live.filter((order) => order.source === channel.key);
+    return {
+      ...channel,
+      total: channelOrders.length,
+      repeat: channelOrders.filter(isRepeatOrder).length,
+    };
+  }).filter((channel) => channel.total > 0);
 
   const exportCsv = () => {
     const header = ["Order Number", "Type", "Source", "Status", "Total", "Created At (IST)"];
@@ -217,6 +287,56 @@ export default function StatsView() {
         )}
       </div>
       <div className="anacard" style={{ marginBottom: 14 }}><h4>Where Orders Came From</h4><Channels live={live} /></div>
+      <div className="ov-card">
+        <h4>Customers — New vs. Returning</h4>
+        <p className="loyalty-subtitle">Based on the filter above</p>
+        <div className="ov-pills">
+          <div className="ovpill teal"><b>{customerCount}</b><span>Customers</span></div>
+          <div className="ovpill blue"><b>{repeatCustomerCount}</b><span>Repeat customers</span></div>
+          <div className="ovpill orange"><b>{repeatRate}%</b><span>Repeat rate</span></div>
+        </div>
+        <div className="loyalty-metrics">
+          <div className="loyalty-metric"><span>New customer orders</span><b>{newCustomerOrders.length}</b></div>
+          <div className="loyalty-metric"><span>Avg order — new</span><b>{rs(newAverageOrder)}</b></div>
+          <div className="loyalty-metric"><span>Returning customer orders</span><b>{returningCustomerOrders.length}</b></div>
+          <div className="loyalty-metric"><span>Avg order — returning</span><b>{rs(returningAverageOrder)}</b></div>
+        </div>
+        <div className="loyalty-channel-title">Returning-customer share by channel, this range</div>
+        {repeatByChannel.length ? repeatByChannel.map((channel) => (
+          <div className="loyalty-channel" key={channel.key}>
+            <span>{channel.label}</span>
+            <div className="loyalty-channel-track"><div style={{ width: `${Math.round((channel.repeat / channel.total) * 100)}%`, background: channel.color }} /></div>
+            <b>{channel.repeat}/{channel.total} repeat</b>
+          </div>
+        )) : <Empty icon="👥" text="No customer orders in this range" />}
+      </div>
+      <div className="ov-card">
+        <h4>Customer Loyalty</h4>
+        <p className="loyalty-subtitle">All-time, not limited by the filter above</p>
+        {loyaltyError ? <div className="err">{loyaltyError}</div> : (
+          <>
+            <div className="loyalty-metrics loyalty-metrics-alltime">
+              <div className="loyalty-metric"><span>Avg days between visits</span><b>{loyaltyStats ? loyaltyStats.averageDaysBetweenVisits == null ? "—" : loyaltyStats.averageDaysBetweenVisits : "…"}</b></div>
+              <div className="loyalty-metric"><span>Repeat customers tracked</span><b>{loyaltyStats ? loyaltyStats.repeatCustomersTracked : "…"}</b></div>
+            </div>
+            {loyaltyStats ? (
+              <>
+                <div className="loyalty-customer-count">Based on {loyaltyStats.ordersAnalyzed.toLocaleString()} non-cancelled orders</div>
+                <div className="loyalty-table-wrap">
+                  <table>
+                    <thead><tr><th>Customer</th><th>Number</th><th>Orders</th><th>Total spend</th></tr></thead>
+                    <tbody>{loyaltyStats.topCustomers.length ? loyaltyStats.topCustomers.map((customer) => (
+                      <tr key={customer.phone}>
+                        <td><b>{customer.name || "—"}</b></td><td>{customer.phone}</td><td>{customer.orders}</td><td>{rs(customer.totalSpend)}</td>
+                      </tr>
+                    )) : <tr><td colSpan={4} className="none">No customer orders to show</td></tr>}</tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+          </>
+        )}
+      </div>
       <div className="anacard">
         <h4>Riders</h4>
         {mobile ? (riderRows.length ? riderRows.map(({ r, n, cash, pend }) => (
